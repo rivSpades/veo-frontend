@@ -1,13 +1,137 @@
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0.99 0 0;
+    --foreground: 0.15 0 0;
+    --card: 1 0 0;
+    --card-foreground: 0.15 0 0;
+    --popover: 1 0 0;
+    --popover-foreground: 0.15 0 0;
+    --primary: 0.45 0.15 220;
+    --primary-foreground: 0.98 0 0;
+    --secondary: 0.96 0 0;
+    --secondary-foreground: 0.25 0 0;
+    --muted: 0.96 0 0;
+    --muted-foreground: 0.55 0 0;
+    --accent: 0.94 0.02 220;
+    --accent-foreground: 0.25 0 0;
+    --destructive: 0.55 0.25 25;
+    --destructive-foreground: 0.98 0 0;
+    --border: 0.9 0 0;
+    --input: 0.94 0 0;
+    --ring: 0.45 0.15 220;
+    --chart-1: 0.55 0.2 220;
+    --chart-2: 0.6 0.15 160;
+    --chart-3: 0.65 0.12 280;
+    --chart-4: 0.7 0.18 40;
+    --chart-5: 0.75 0.15 320;
+    --radius: 0.5rem;
+    --sidebar: 0.98 0 0;
+    --sidebar-foreground: 0.2 0 0;
+    --sidebar-primary: 0.45 0.15 220;
+    --sidebar-primary-foreground: 0.98 0 0;
+    --sidebar-accent: 0.94 0.02 220;
+    --sidebar-accent-foreground: 0.25 0 0;
+    --sidebar-border: 0.92 0 0;
+    --sidebar-ring: 0.45 0.15 220;
+  }
+
+  .dark {
+    --background: 0.08 0 0;
+    --foreground: 0.95 0 0;
+    --card: 0.1 0 0;
+    --card-foreground: 0.95 0 0;
+    --popover: 0.08 0 0;
+    --popover-foreground: 0.95 0 0;
+    --primary: 0.65 0.15 220;
+    --primary-foreground: 0.08 0 0;
+    --secondary: 0.15 0 0;
+    --secondary-foreground: 0.95 0 0;
+    --muted: 0.15 0 0;
+    --muted-foreground: 0.65 0 0;
+    --accent: 0.18 0.02 220;
+    --accent-foreground: 0.95 0 0;
+    --destructive: 0.6 0.25 25;
+    --destructive-foreground: 0.95 0 0;
+    --border: 0.18 0 0;
+    --input: 0.15 0 0;
+    --ring: 0.65 0.15 220;
+    --chart-1: 0.488 0.243 264.376;
+    --chart-2: 0.696 0.17 162.48;
+    --chart-3: 0.769 0.188 70.08;
+    --chart-4: 0.627 0.265 303.9;
+    --chart-5: 0.645 0.246 16.439;
+    --sidebar: 0.1 0 0;
+    --sidebar-foreground: 0.9 0 0;
+    --sidebar-primary: 0.65 0.15 220;
+    --sidebar-primary-foreground: 0.08 0 0;
+    --sidebar-accent: 0.18 0.02 220;
+    --sidebar-accent-foreground: 0.95 0 0;
+    --sidebar-border: 0.18 0 0;
+    --sidebar-ring: 0.65 0.15 220;
+  }
+
+  * {
+    @apply border-border;
+    outline-color: oklch(var(--ring) / 0.5);
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Ensure text selection is visible */
+  ::selection {
+    background-color: oklch(var(--primary) / 0.3);
+    color: inherit;
+  }
+
+  input::selection,
+  textarea::selection {
+    background-color: oklch(var(--primary) / 0.3);
+    color: inherit;
+  }
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+/* Custom scrollbar hiding styles */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Line clamp utilities */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Shadow utilities */
+.shadow-xs {
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+/* Custom scrollbar hiding styles */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
