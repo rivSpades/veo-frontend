@@ -79,13 +79,13 @@ export function SidebarMenuItem({ children }) {
   return <div>{children}</div>;
 }
 
-export function SidebarMenuButton({ children, asChild, isActive, className = '' }) {
+export function SidebarMenuButton({ children, asChild, isActive, className = '', onClick, ...props }) {
   if (asChild) {
     return <div className={className}>{children}</div>;
   }
 
   return (
-    <button className={`w-full text-left ${className}`}>
+    <button className={`w-full text-left ${className}`} onClick={onClick} {...props}>
       {children}
     </button>
   );

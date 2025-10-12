@@ -173,11 +173,7 @@ export default function Settings() {
   useEffect(() => {
     if (!isDirty || !settings || !instanceId) return;
 
-    const timeoutId = setTimeout(async () => {
-      await saveSettings();
-    }, 1000); // Save after 1 second of inactivity
-
-    return () => clearTimeout(timeoutId);
+    saveSettings();
   }, [settings, workingHours, isDirty]);
 
   const saveSettings = async () => {

@@ -30,10 +30,8 @@ export default function VerifyMagicLink() {
 
         if (result.success) {
           setStatus('success');
-          // Redirect to dashboard after 2 seconds
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 2000);
+          // Redirect to dashboard immediately
+          navigate('/dashboard');
         } else {
           setStatus('error');
           setErrorMessage(result.error?.message || t('auth.verify.invalid'));

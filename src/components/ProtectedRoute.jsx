@@ -36,9 +36,18 @@ export function ProtectedRoute({ children, requireAdmin = false }) {
     return <Navigate to="/auth/login" replace />;
   }
 
-  // Redirect to onboarding if user doesn't have an instance
-  if (!instanceId) {
+  // Redirect to onboarding if user doesn't have any instances (hasn't completed onboarding)
+  if (!user?.has_instances && (!user?.instances || user.instances.length === 0)) {
+    console.log('User has no instances, redirecting to onboarding');
     return <Navigate to="/onboarding" replace />;
+  }
+  
+  // Set instance_id in localStorage if user has instances (for backward compatibility)
+  if (user?.instances && user.instances.length > 0) {
+    const storedInstanceId = localStorage.getItem('instance_id');
+    if (!storedInstanceId) {
+      localStorage.setItem('instance_id', user.instances[0].id);
+    }
   }
 
   // Redirect to dashboard if admin required but user is not admin
@@ -88,8 +97,7 @@ export function PublicRoute({ children }) {
  * Redirects to dashboard if user already has an instance
  */
 export function OnboardingRoute({ children }) {
-  const { isLoading, isAuthenticated } = useAuth();
-  const instanceId = localStorage.getItem('instance_id');
+  const { isLoading, isAuthenticated, user } = useAuth();
 
   // Show loading spinner while checking authentication
   if (isLoading) {
@@ -112,8 +120,9 @@ export function OnboardingRoute({ children }) {
     return <Navigate to="/auth/login" replace />;
   }
 
-  // Redirect to dashboard if user already has an instance
-  if (instanceId) {
+  // Redirect to dashboard if user already has instances (completed onboarding)
+  if (user?.has_instances || user?.instances?.length > 0) {
+    console.log('User has instances, redirecting to dashboard');
     return <Navigate to="/dashboard" replace />;
   }
 

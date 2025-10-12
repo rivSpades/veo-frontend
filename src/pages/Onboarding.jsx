@@ -88,8 +88,8 @@ export default function Onboarding() {
   // Timer for verification code
   useEffect(() => {
     if (currentStep === 2 && timeLeft > 0) {
-      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-      return () => clearTimeout(timer);
+      const timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
+      return () => clearInterval(timer);
     } else if (timeLeft === 0) {
       setCanResend(true);
     }

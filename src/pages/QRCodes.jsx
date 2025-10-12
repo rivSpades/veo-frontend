@@ -7,7 +7,8 @@ import { Label } from '../components/ui/Label';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { useToast } from '../components/ui/Toast';
 import { QrCode, Upload, Palette, Eye, Download, Printer, RotateCcw } from 'lucide-react';
-import { getMenus, getQRSettings, updateQRSettings } from '../utils/menuStorage';
+import { instancesAPI, apiFetch } from '../data/api';
+import { getMenus } from '../data/menus';
 import { jsPDF } from 'jspdf';
 
 const defaultQRSettings = {
@@ -40,17 +41,67 @@ export default function QRCodes() {
     }
   }, [settings]);
 
-  const loadData = () => {
+  const loadData = async () => {
     try {
-      const allMenus = getMenus();
-      const qrSettings = getQRSettings();
-
-      // Set the first menu as selected if none is selected
-      if (!qrSettings.selectedMenuId && allMenus.length > 0) {
-        qrSettings.selectedMenuId = allMenus[0].id;
+      const instanceId = localStorage.getItem('instance_id');
+      if (!instanceId) {
+        toast({
+          title: 'Error',
+          description: 'No instance selected. Please select an instance first.',
+          type: 'error',
+        });
+        setLoading(false);
+        return;
       }
 
-      setMenus(allMenus);
+      // Fetch instance data from backend (includes QR settings)
+      const instanceResponse = await instancesAPI.getInstance(instanceId);
+      const instanceData = instanceResponse.success ? instanceResponse.data : instanceResponse;
+
+      // Fetch menus only if we need to select one
+      const menusResponse = await getMenus(instanceId);
+      
+      console.log('Menus API Response:', menusResponse);
+      
+      const allMenus = Array.isArray(menusResponse?.data) 
+        ? menusResponse.data 
+        : (menusResponse.success && Array.isArray(menusResponse.data) 
+          ? menusResponse.data 
+          : []);
+
+      console.log('QR Code Data Loaded:', { 
+        allMenus, 
+        instanceData,
+        hasMenus: allMenus.length > 0,
+        menusIsArray: Array.isArray(allMenus),
+        selectedMenuId: instanceData.qr_selected_menu_id
+      });
+
+      // Transform backend QR settings to frontend format
+      const qrSettings = {
+        selectedMenuId: instanceData.qr_selected_menu_id || allMenus[0]?.id,
+        foregroundColor: instanceData.qr_foreground_color || '#000000',
+        size: instanceData.qr_size || 400,
+        margin: instanceData.qr_margin || 4,
+        errorCorrectionLevel: instanceData.qr_error_correction_level || 'M',
+        logoImage: instanceData.qr_logo_image || undefined,
+      };
+
+      console.log('QR Settings:', qrSettings);
+
+      // Check if we have a menu to generate QR for
+      if (!qrSettings.selectedMenuId) {
+        toast({
+          title: 'No menu selected',
+          description: 'Please create a menu first before generating QR codes.',
+          type: 'info',
+        });
+        setMenus([]); // Ensure it's set to empty array
+        setLoading(false);
+        return;
+      }
+
+      setMenus(allMenus); // allMenus is guaranteed to be an array here
       setSettings(qrSettings);
       setLoading(false);
     } catch (error) {
@@ -122,6 +173,7 @@ export default function QRCodes() {
 
             // Convert canvas to data URL for preview
             const dataUrl = canvas.toDataURL('image/png');
+            console.log('QR Code generated with background:', dataUrl.substring(0, 50));
             setQrCodeUrl(dataUrl);
           };
 
@@ -157,7 +209,10 @@ export default function QRCodes() {
     qrImg.onload = () => {
       ctx.drawImage(qrImg, 0, 0, size, size);
       const dataUrl = canvasRef.current?.toDataURL('image/png');
-      if (dataUrl) setQrCodeUrl(dataUrl);
+      if (dataUrl) {
+        console.log('QR Code generated (no background):', dataUrl.substring(0, 50));
+        setQrCodeUrl(dataUrl);
+      }
     };
 
     qrImg.onerror = () => {
@@ -175,17 +230,58 @@ export default function QRCodes() {
     setIsDirty(true);
   };
 
-  // Auto-save with debouncing
+  // Auto-save immediately
   useEffect(() => {
     if (!isDirty || !settings) return;
 
-    const timeoutId = setTimeout(() => {
-      updateQRSettings(settings);
-      setIsDirty(false);
-    }, 1000); // Save after 1 second of inactivity
+    const saveSettings = async () => {
+      try {
+        const instanceId = localStorage.getItem('instance_id');
+        if (!instanceId) return;
 
-    return () => clearTimeout(timeoutId);
-  }, [settings, isDirty]);
+        // Transform frontend settings to backend format
+        const backendData = {
+          qr_selected_menu_id: settings.selectedMenuId,
+          qr_foreground_color: settings.foregroundColor,
+          qr_size: settings.size,
+          qr_margin: settings.margin,
+          qr_error_correction_level: settings.errorCorrectionLevel,
+        };
+
+        // Only include logoImage if it's changed and not a URL (new upload)
+        if (settings.logoImage && !settings.logoImage.startsWith('http')) {
+          // For file uploads, use FormData
+          const formData = new FormData();
+          Object.keys(backendData).forEach(key => {
+            formData.append(key, backendData[key]);
+          });
+          
+          // Convert base64 to blob for logo
+          if (settings.logoImage) {
+            const response = await fetch(settings.logoImage);
+            const blob = await response.blob();
+            formData.append('qr_logo_image', blob, 'qr-logo.png');
+          }
+          
+          await instancesAPI.updateInstance(instanceId, formData);
+        } else {
+          await instancesAPI.updateInstance(instanceId, backendData);
+        }
+
+        setIsDirty(false);
+        console.log('QR settings saved to backend');
+      } catch (error) {
+        console.error('Error saving QR settings:', error);
+        toast({
+          title: 'Auto-save failed',
+          description: 'Failed to save QR settings. Please try again.',
+          type: 'error',
+        });
+      }
+    };
+
+    saveSettings();
+  }, [settings, isDirty, toast]);
 
   const handleLogoUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -240,11 +336,24 @@ export default function QRCodes() {
   };
 
   const downloadQRCode = async (format) => {
-    if (!canvasRef.current || !qrCodeUrl) return;
+    if (!canvasRef.current || !qrCodeUrl) {
+      console.error('Download failed:', { 
+        hasCanvas: !!canvasRef.current, 
+        hasQrCodeUrl: !!qrCodeUrl 
+      });
+      toast({
+        title: 'Cannot download',
+        description: 'QR code is not ready. Please wait for it to generate.',
+        type: 'error',
+      });
+      return;
+    }
 
     setDownloading(true);
     try {
-      const selectedMenu = menus.find((m) => m.id === settings?.selectedMenuId);
+      // Ensure menus is an array
+      const menusList = Array.isArray(menus) ? menus : [];
+      const selectedMenu = menusList.find((m) => m.id === settings?.selectedMenuId);
       const fileName = `qr-code-${selectedMenu?.name || 'menu'}`;
 
       if (format === 'png') {
@@ -320,7 +429,9 @@ export default function QRCodes() {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const selectedMenu = menus.find((m) => m.id === settings?.selectedMenuId);
+    // Ensure menus is an array
+    const menusList = Array.isArray(menus) ? menus : [];
+    const selectedMenu = menusList.find((m) => m.id === settings?.selectedMenuId);
     const menuName = selectedMenu?.name || 'Menu';
 
     const printContent = `
@@ -380,11 +491,9 @@ export default function QRCodes() {
     printWindow.document.write(printContent);
     printWindow.document.close();
 
-    // Wait for images to load before printing
+    // Print when images are loaded
     printWindow.onload = () => {
-      setTimeout(() => {
-        printWindow.print();
-      }, 500);
+      printWindow.print();
     };
   };
 

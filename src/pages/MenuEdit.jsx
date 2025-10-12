@@ -567,12 +567,8 @@ export default function MenuEdit() {
   // Auto-save with debouncing
   useEffect(() => {
     if (!isDirty || !menu) return;
-
-    const timeoutId = setTimeout(() => {
-      saveMenu();
-    }, 1000); // Save after 1 second of inactivity
-
-    return () => clearTimeout(timeoutId);
+    
+    saveMenu();
   }, [menu, designSettings, isDirty]);
 
   // Add new section (backend integration)
@@ -692,16 +688,6 @@ export default function MenuEdit() {
         setPreviewActiveSubSectionId(newSubsection.id);
 
         showToast('Subsection created successfully', 'success');
-
-        // Focus on the newly created subsection's name input after render
-        setTimeout(() => {
-          const inputs = document.querySelectorAll('input[type="text"]');
-          const lastInput = inputs[inputs.length - 1];
-          if (lastInput) {
-            lastInput.focus();
-            lastInput.select();
-          }
-        }, 100);
       } else {
         showToast(typeof response.error === 'string' ? response.error : response.error?.message || 'Failed to create subsection', 'error');
       }
@@ -1503,9 +1489,8 @@ export default function MenuEdit() {
                                 };
                                 setMenu(updatedMenu);
 
-                                // Debounce backend update
-                                clearTimeout(window.sectionNameTimeout);
-                                window.sectionNameTimeout = setTimeout(async () => {
+                                // Update backend immediately
+                                (async () => {
                                   try {
                                     const defaultLang = menu.default_language || menu.available_languages?.[0] || 'en';
                                     await updateSection(section.id, {
@@ -1514,7 +1499,7 @@ export default function MenuEdit() {
                                   } catch (error) {
                                     console.error('Error updating section name:', error);
                                   }
-                                }, 500);
+                                })();
                               }}
                               onClick={(e) => e.stopPropagation()}
                               className="text-base font-semibold border-0 bg-transparent focus:bg-white focus:border-purple-300"

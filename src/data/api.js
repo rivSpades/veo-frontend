@@ -170,17 +170,27 @@ export const authAPI = {
    * Logout current user
    */
   async logout() {
-    const response = await apiFetch('/auth/logout/', {
-      method: 'POST',
-    });
+    console.log('Logging out - calling backend...');
+    
+    try {
+      const response = await apiFetch('/auth/logout/', {
+        method: 'POST',
+      });
+      
+      console.log('Logout response from backend:', response);
+    } catch (error) {
+      console.error('Logout backend error:', error);
+    }
 
-    // Clear local storage
+    // Clear local storage regardless of backend response
+    console.log('Clearing localStorage...');
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
     localStorage.removeItem('instance_id');
-
-    return response;
+    
+    console.log('Logout complete');
+    return { success: true };
   },
 
   /**

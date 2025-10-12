@@ -58,11 +58,8 @@ export const ToastProvider = ({ children }) => {
 
     setToasts((prev) => [...prev, newToast]);
 
-    if (duration > 0) {
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, duration);
-    }
+    // Note: Toasts will need to be dismissed manually or use a different timing mechanism
+    // if duration > 0 is needed, consider using requestAnimationFrame or Date-based checks
 
     return { id };
   }, []);

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/Avatar';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -67,6 +68,7 @@ export function DashboardHeader({
   showHelp = false,
   user = { name: 'Restaurant Bella Vista', initials: 'BV', avatar: null },
 }) {
+  const navigate = useNavigate();
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
   const [notifications, setNotifications] = useState(sampleNotifications);
 
@@ -241,7 +243,10 @@ export function DashboardHeader({
         )}
 
         {/* User Avatar */}
-        <Avatar className="h-8 w-8 cursor-pointer">
+        <Avatar 
+          className="h-8 w-8 cursor-pointer hover:ring-2 hover:ring-purple-300 transition-all" 
+          onClick={() => navigate('/dashboard/settings')}
+        >
           {user.avatar ? (
             <AvatarImage src={user.avatar} alt={user.name} />
           ) : null}

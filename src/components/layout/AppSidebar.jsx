@@ -1,6 +1,7 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, LogOut, QrCode as QrCodeIcon, Settings, User, Utensils, HelpCircle, FileText } from 'lucide-react';
+import { useAuth } from '../../store/AuthContext';
 import {
   Sidebar,
   SidebarContent,
@@ -46,17 +47,23 @@ const supportNavigation = [
   },
 ];
 
-const accountNavigation = [
-  {
-    title: 'Logout',
-    url: '/',
-    icon: LogOut,
-  },
-];
-
 export function AppSidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const pathname = location.pathname;
+
+  const handleLogout = async () => {
+    console.log('Logout button clicked');
+    try {
+      console.log('Calling logout function...');
+      await logout();
+      console.log('Logout completed, navigating to login...');
+      navigate('/auth/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   return (
     <Sidebar variant="sidebar">
@@ -148,26 +155,14 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {accountNavigation.map((item) => {
-                const isActive = pathname === item.url;
-
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      className={isActive ? 'bg-purple-50 text-purple-600 border-r-2 border-purple-600' : ''}
-                    >
-                      <Link to={item.url} className="flex items-center gap-3 px-3 py-2">
-                        <item.icon className={`h-4 w-4 ${isActive ? 'text-purple-600' : 'text-gray-500'}`} />
-                        <span className={isActive ? 'font-medium text-purple-600' : 'text-gray-700'}>
-                          {item.title}
-                        </span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={handleLogout}>
+                  <div className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-100 rounded-md transition-colors">
+                    <LogOut className="h-4 w-4 text-gray-500" />
+                    <span className="text-gray-700">Logout</span>
+                  </div>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

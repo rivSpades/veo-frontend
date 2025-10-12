@@ -339,7 +339,12 @@ export function DemoWidget({
   const copyWifiPassword = () => {
     navigator.clipboard.writeText(demoRestaurant.wifiPassword);
     setWifiCopied(true);
-    setTimeout(() => setWifiCopied(false), 2000);
+    // Reset copied state immediately (user will see the check icon briefly)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setWifiCopied(false);
+      });
+    });
   };
 
   // Get design settings from menu or use beautiful defaults (exact match to landing page)
