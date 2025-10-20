@@ -104,13 +104,19 @@ export function AuthProvider({ children }) {
     const response = await authAPI.register(userData);
 
     if (response.success) {
+      // If registration includes tokens, automatically log in the user
+      if (response.data.access_token && response.data.refresh_token && response.data.user) {
+        localStorage.setItem('access_token', response.data.access_token);
+        localStorage.setItem('refresh_token', response.data.refresh_token);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        dispatch({ type: AUTH_ACTIONS.SET_USER, payload: response.data.user });
+      }
+      
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
       return { success: true, data: response.data };
     } else {
-      dispatch({
-        type: AUTH_ACTIONS.SET_ERROR,
-        payload: response.error.message || 'Registration failed',
-      });
+      // Don't set error in context - let the component handle it
+      dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
       return { success: false, error: response.error };
     }
   }, []);
@@ -213,6 +219,29 @@ export function AuthProvider({ children }) {
     dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
   }, []);
 
+  // Refresh user data from backend
+  const refreshUser = useCallback(async () => {
+    try {
+      console.log('AuthContext: Refreshing user data...');
+      const response = await authAPI.getCurrentUser();
+      console.log('AuthContext: API response:', response);
+      
+      if (response.success) {
+        console.log('AuthContext: Setting user data:', response.data);
+        dispatch({ type: AUTH_ACTIONS.SET_USER, payload: response.data });
+        localStorage.setItem('user', JSON.stringify(response.data));
+        console.log('AuthContext: User data updated in state and localStorage');
+        return { success: true, data: response.data };
+      } else {
+        console.log('AuthContext: Failed to get user data:', response.error);
+        return { success: false, error: response.error };
+      }
+    } catch (error) {
+      console.log('AuthContext: Error refreshing user data:', error);
+      return { success: false, error: { message: 'Failed to refresh user data' } };
+    }
+  }, []);
+
   const value = {
     user: state.user,
     isLoading: state.isLoading,
@@ -223,6 +252,7 @@ export function AuthProvider({ children }) {
     verifyMagicLink,
     logout,
     updateProfile,
+    refreshUser,
     isAuthenticated,
     isAdmin,
     clearError,

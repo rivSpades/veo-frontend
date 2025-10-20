@@ -12,6 +12,7 @@ import { Progress } from '../components/ui/Progress';
 import { Select } from '../components/ui/Select';
 import { useToast } from '../components/ui/Toast';
 import { useTranslation } from '../store/LanguageContext';
+import { useAuth } from '../store/AuthContext';
 import {
   ArrowLeft,
   ArrowRight,
@@ -22,15 +23,9 @@ import {
   Check,
   Sparkles,
   QrCode,
-  Phone,
-  Shield,
-  RotateCcw,
-  PhoneCall,
-  Mail,
   Wifi,
   Clock,
   Settings,
-  X,
   Utensils,
   Eye,
   Save,
@@ -49,13 +44,11 @@ const availableLanguages = [
 export default function Onboarding() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
-  const [timeLeft, setTimeLeft] = useState(210); // 3:30 in seconds
-  const [canResend, setCanResend] = useState(false);
-  const [menuCreationStep, setMenuCreationStep] = useState(1); // For step 4 sub-steps
+  const [menuCreationStep, setMenuCreationStep] = useState(1); // For step 3 sub-steps
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useTranslation();
+  const { refreshUser } = useAuth();
 
   const [formData, setFormData] = useState({
     // Step 1: Restaurant Details
@@ -82,24 +75,9 @@ export default function Onboarding() {
     menuDefaultLanguage: 'en',
   });
 
-  const totalSteps = 4;
+  const totalSteps = 3;
   const progress = (currentStep / totalSteps) * 100;
 
-  // Timer for verification code
-  useEffect(() => {
-    if (currentStep === 2 && timeLeft > 0) {
-      const timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-      return () => clearInterval(timer);
-    } else if (timeLeft === 0) {
-      setCanResend(true);
-    }
-  }, [currentStep, timeLeft]);
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -135,36 +113,14 @@ export default function Onboarding() {
     }
   };
 
-  const handleVerificationCodeChange = (index, value) => {
-    if (value.length <= 1 && /^\d*$/.test(value)) {
-      const newCode = [...verificationCode];
-      newCode[index] = value;
-      setVerificationCode(newCode);
-
-      // Auto-focus next input
-      if (value && index < 5) {
-        const nextInput = document.getElementById(`code-${index + 1}`);
-        nextInput?.focus();
-      }
-    }
-  };
-
-  const handleKeyDown = (index, e) => {
-    if (e.key === 'Backspace' && !verificationCode[index] && index > 0) {
-      const prevInput = document.getElementById(`code-${index - 1}`);
-      prevInput?.focus();
-    }
-  };
 
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return formData.restaurantName?.trim() && formData.country?.trim() && formData.city?.trim() && formData.phoneNumber?.trim();
+        return formData.restaurantName?.trim() && formData.country?.trim() && formData.city?.trim();
       case 2:
-        return verificationCode.every((digit) => digit !== '');
-      case 3:
         return true; // Can always proceed (skip or configure)
-      case 4:
+      case 3:
         if (!formData.createMenu) return true; // Can skip
         if (menuCreationStep === 1) return formData.menuName?.trim().length > 0;
         if (menuCreationStep === 2) return formData.menuLanguages.length > 0;
@@ -177,27 +133,12 @@ export default function Onboarding() {
 
   const handleNext = () => {
     if (currentStep === 1) {
-      // Send verification code
-      toast({
-        title: "Code sent!",
-        description: `We sent a verification code to ${formData.phoneNumber}`,
-        type: "success"
-      });
-      setTimeLeft(210);
-      setCanResend(false);
+      // Restaurant details completed - go to settings
       setCurrentStep(2);
     } else if (currentStep === 2) {
-      // Verify code (in real app, validate with backend)
-      toast({
-        title: "Phone verified!",
-        description: "Your phone number has been verified successfully",
-        type: "success"
-      });
+      // Settings configured or skipped - go to menu creation
       setCurrentStep(3);
     } else if (currentStep === 3) {
-      // Settings configured or skipped
-      setCurrentStep(4);
-    } else if (currentStep === 4) {
       if (formData.createMenu) {
         if (menuCreationStep < 3) {
           setMenuCreationStep(menuCreationStep + 1);
@@ -211,23 +152,13 @@ export default function Onboarding() {
   };
 
   const handleBack = () => {
-    if (currentStep === 4 && formData.createMenu && menuCreationStep > 1) {
+    if (currentStep === 3 && formData.createMenu && menuCreationStep > 1) {
       setMenuCreationStep(menuCreationStep - 1);
     } else if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
   };
 
-  const handleResendCode = () => {
-    setTimeLeft(210);
-    setCanResend(false);
-    setVerificationCode(['', '', '', '', '', '']);
-    toast({
-      title: "Code resent!",
-      description: `New code sent to ${formData.phoneNumber}`,
-      type: "success"
-    });
-  };
 
   const handleComplete = async () => {
     setIsLoading(true);
@@ -257,6 +188,14 @@ export default function Onboarding() {
       const result = await instancesAPI.createInstance(instanceData);
 
       if (result.success) {
+        // Store the instance ID for immediate use
+        if (result.data?.id) {
+          localStorage.setItem('instance_id', result.data.id);
+        }
+
+        // Refresh user data to get updated instance information
+        await refreshUser();
+
         toast({
           title: t('onboarding.toast.setupComplete'),
           description: t('onboarding.toast.setupCompleteDesc'),
@@ -343,21 +282,6 @@ export default function Onboarding() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="phoneNumber" className="text-white">
-                  {t('onboarding.restaurant.phone')}
-                </Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3 h-4 w-4 text-white/60" />
-                  <Input
-                    id="phoneNumber"
-                    placeholder={t('onboarding.restaurant.phonePlaceholder')}
-                    value={formData.phoneNumber}
-                    onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                    className="pl-10 bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-white/50"
-                  />
-                </div>
-              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="description" className="text-white">
@@ -400,7 +324,7 @@ export default function Onboarding() {
           </motion.div>
         );
 
-      // STEP 2: Phone Verification (OTP)
+      // STEP 2: Restaurant Settings (Optional)
       case 2:
         return (
           <motion.div
@@ -411,72 +335,126 @@ export default function Onboarding() {
             className="space-y-6"
           >
             <div className="text-center space-y-2">
-              <div className="w-16 h-16 bg-blue-500/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Phone className="w-8 h-8 text-white" />
+              <div className="w-16 h-16 bg-orange-500/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Settings className="w-8 h-8 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-white">{t('onboarding.verification.title')}</h2>
-              <p className="text-white/80">{t('onboarding.verification.subtitle')}</p>
-              <p className="text-white font-semibold">{formData.phoneNumber}</p>
+              <h2 className="text-2xl font-bold text-white">{t('onboarding.settings.title')}</h2>
+              <p className="text-white/80">{t('onboarding.settings.subtitle')}</p>
             </div>
 
-            <div className="space-y-6">
-              {/* Verification Code Input */}
-              <div className="flex justify-center gap-3">
-                {verificationCode.map((digit, index) => (
-                  <Input
-                    key={index}
-                    id={`code-${index}`}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleVerificationCodeChange(index, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
-                    className="w-12 h-12 text-center text-lg font-semibold bg-white/10 border-white/30 text-white focus:border-white/50"
-                  />
-                ))}
-              </div>
+            {/* Choice Buttons */}
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => handleInputChange('configureSettings', true)}
+                className={`p-6 rounded-lg border-2 transition-all ${
+                  formData.configureSettings
+                    ? 'border-white bg-white/20'
+                    : 'border-white/30 hover:border-white/50'
+                }`}
+              >
+                <Settings className="w-12 h-12 text-white mx-auto mb-3" />
+                <h3 className="font-semibold text-white mb-1">{t('onboarding.settings.configureNow')}</h3>
+                <p className="text-sm text-white/70">{t('onboarding.settings.configureNowDesc')}</p>
+              </button>
 
-              {/* Timer */}
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-2 text-white/80 mb-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-white/60 border-t-transparent animate-spin" />
-                  <span className="text-sm">{t('onboarding.verification.expires')}</span>
+              <button
+                onClick={() => handleInputChange('configureSettings', false)}
+                className={`p-6 rounded-lg border-2 transition-all ${
+                  !formData.configureSettings
+                    ? 'border-white bg-white/20'
+                    : 'border-white/30 hover:border-white/50'
+                }`}
+              >
+                <ArrowRight className="w-12 h-12 text-white mx-auto mb-3" />
+                <h3 className="font-semibold text-white mb-1">{t('onboarding.settings.skipForNow')}</h3>
+                <p className="text-sm text-white/70">{t('onboarding.settings.skipForNowDesc')}</p>
+              </button>
+            </div>
+
+            {/* Settings Form (if user chooses to configure) */}
+            {formData.configureSettings && (
+              <div className="space-y-4 mt-6">
+                <div className="bg-white/10 p-4 rounded-lg border border-white/20">
+                  <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                    <Wifi className="w-5 h-5" />
+                    {t('onboarding.settings.wifiTitle')}
+                  </h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label htmlFor="wifiName" className="text-white text-sm">{t('onboarding.settings.wifiName')}</Label>
+                      <Input
+                        id="wifiName"
+                        placeholder={t('onboarding.settings.wifiNamePlaceholder')}
+                        value={formData.wifiName}
+                        onChange={(e) => handleInputChange('wifiName', e.target.value)}
+                        className="mt-1 bg-white/10 border-white/30 text-white placeholder:text-white/60"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="wifiPassword" className="text-white text-sm">{t('onboarding.settings.wifiPassword')}</Label>
+                      <Input
+                        id="wifiPassword"
+                        type="password"
+                        placeholder={t('onboarding.settings.wifiPasswordPlaceholder')}
+                        value={formData.wifiPassword}
+                        onChange={(e) => handleInputChange('wifiPassword', e.target.value)}
+                        className="mt-1 bg-white/10 border-white/30 text-white placeholder:text-white/60"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="text-2xl font-bold text-white">{formatTime(timeLeft)}</div>
-              </div>
 
-              {/* Resend Code */}
-              <div className="text-center space-y-3">
-                <p className="text-white/80 text-sm">{t('onboarding.verification.didntReceive')}</p>
-                <Button
-                  variant="outline"
-                  onClick={handleResendCode}
-                  disabled={!canResend}
-                  className="bg-white/10 border-white/30 text-white hover:bg-white/20 disabled:opacity-50"
-                >
-                  <RotateCcw className="w-4 h-4 mr-2" />
-                  {t('onboarding.verification.resend')}
-                </Button>
-              </div>
+                <div className="bg-white/10 p-4 rounded-lg border border-white/20">
+                  <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                    <Clock className="w-5 h-5" />
+                    {t('onboarding.settings.hoursTitle')}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="openingTime" className="text-white text-sm">{t('onboarding.settings.openingTime')}</Label>
+                      <Input
+                        id="openingTime"
+                        type="time"
+                        value={formData.openingTime}
+                        onChange={(e) => handleInputChange('openingTime', e.target.value)}
+                        className="mt-1 bg-white/10 border-white/30 text-white"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="closingTime" className="text-white text-sm">{t('onboarding.settings.closingTime')}</Label>
+                      <Input
+                        id="closingTime"
+                        type="time"
+                        value={formData.closingTime}
+                        onChange={(e) => handleInputChange('closingTime', e.target.value)}
+                        className="mt-1 bg-white/10 border-white/30 text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
 
-              {/* Security Info */}
-              <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                <div className="flex items-start gap-3">
-                  <Shield className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
+                <div className="bg-white/10 p-4 rounded-lg border border-white/20">
+                  <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                    <Globe className="w-5 h-5" />
+                    {t('onboarding.settings.googleTitle')}
+                  </h3>
                   <div>
-                    <h4 className="font-semibold text-white mb-1">{t('onboarding.verification.security')}</h4>
-                    <p className="text-sm text-white/80">
-                      {t('onboarding.verification.securityDesc')}
-                    </p>
+                    <Label htmlFor="googleBusinessUrl" className="text-white text-sm">{t('onboarding.settings.googleUrl')}</Label>
+                    <Input
+                      id="googleBusinessUrl"
+                      placeholder={t('onboarding.settings.googleUrlPlaceholder')}
+                      value={formData.googleBusinessUrl}
+                      onChange={(e) => handleInputChange('googleBusinessUrl', e.target.value)}
+                      className="mt-1 bg-white/10 border-white/30 text-white placeholder:text-white/60"
+                    />
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </motion.div>
         );
 
-      // STEP 3: Restaurant Settings (Optional)
+      // STEP 3: Create First Menu (Optional with sub-steps)
       case 3:
         return (
           <motion.div
@@ -606,8 +584,6 @@ export default function Onboarding() {
           </motion.div>
         );
 
-      // STEP 4: Create First Menu (Optional with sub-steps)
-      case 4:
         if (!formData.createMenu) {
           // Show choice: create menu or skip
           return (
@@ -929,7 +905,7 @@ export default function Onboarding() {
           <Button
             variant="outline"
             onClick={handleBack}
-            disabled={currentStep === 1 || (currentStep === 4 && !formData.createMenu && menuCreationStep === 1)}
+            disabled={currentStep === 1 || (currentStep === 3 && !formData.createMenu && menuCreationStep === 1)}
             className="flex items-center gap-2 bg-white/10 border-white/30 text-white hover:bg-white/20"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -946,24 +922,19 @@ export default function Onboarding() {
                 <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
                 {t('onboarding.navigation.settingUp')}
               </>
-            ) : currentStep === 4 && formData.createMenu && menuCreationStep === 3 ? (
+            ) : currentStep === 3 && formData.createMenu && menuCreationStep === 3 ? (
               <>
                 <Save className="w-4 h-4" />
                 {t('onboarding.navigation.createMenu')}
               </>
-            ) : currentStep === 4 && !formData.createMenu ? (
+            ) : currentStep === 3 && !formData.createMenu ? (
               <>
                 <Sparkles className="w-4 h-4" />
                 {t('onboarding.navigation.completeSetup')}
               </>
             ) : currentStep === 1 ? (
               <>
-                {t('onboarding.navigation.sendCode')}
-                <ArrowRight className="w-4 h-4" />
-              </>
-            ) : currentStep === 2 ? (
-              <>
-                {t('onboarding.navigation.verify')}
+                {t('onboarding.navigation.next')}
                 <ArrowRight className="w-4 h-4" />
               </>
             ) : (

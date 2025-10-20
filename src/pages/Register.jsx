@@ -1,40 +1,98 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
 import { Separator } from '../components/ui/Separator';
-import { QrCode, Mail, Lock, User, ArrowLeft, Chrome, Eye, EyeOff } from 'lucide-react';
+import { QrCode, Mail, Lock, User, ArrowLeft, Chrome, Eye, EyeOff, Phone, ChevronDown } from 'lucide-react';
 import { useTranslation } from '../store/LanguageContext';
 import { useAuth } from '../store/AuthContext';
+
+// Country codes with flags
+const countryCodes = [
+  { code: '+351', flag: '🇵🇹', name: 'Portugal' },
+  { code: '+34', flag: '🇪🇸', name: 'Spain' },
+  { code: '+33', flag: '🇫🇷', name: 'France' },
+  { code: '+49', flag: '🇩🇪', name: 'Germany' },
+  { code: '+39', flag: '🇮🇹', name: 'Italy' },
+  { code: '+44', flag: '🇬🇧', name: 'United Kingdom' },
+  { code: '+1', flag: '🇺🇸', name: 'United States' },
+  { code: '+55', flag: '🇧🇷', name: 'Brazil' },
+  { code: '+54', flag: '🇦🇷', name: 'Argentina' },
+  { code: '+56', flag: '🇨🇱', name: 'Chile' },
+];
 
 export default function Register() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    countryCode: '+351',
+    phone: '',
     password: '',
     confirmPassword: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [showCountryDropdown, setShowCountryDropdown] = useState(false);
+  const [error, setError] = useState(undefined);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const dropdownRef = useRef(null);
+  
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { register, isLoading, error: authError, clearError } = useAuth();
+  const { register, isLoading, error: authError, clearError, isAuthenticated } = useAuth();
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowCountryDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+  
+  
+  // Handle auth logic internally to prevent remounting
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (isAuthenticated()) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const handleInputChange = (e) => {
     setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }));
+    
+    // Clear field-specific error when user starts typing
+    if (fieldErrors[e.target.name]) {
+      setFieldErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[e.target.name];
+        return newErrors;
+      });
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    clearError();
 
     // Basic validation
     if (!formData.name.trim()) {
@@ -44,6 +102,11 @@ export default function Register() {
 
     if (!formData.email.trim()) {
       setError(t('auth.register.alertEmail'));
+      return;
+    }
+
+    if (!formData.phone.trim()) {
+      setError('Phone number is required');
       return;
     }
 
@@ -63,29 +126,54 @@ export default function Register() {
     }
 
     try {
+      
       // Call backend register API
       const result = await register({
         email: formData.email,
         name: formData.name,
+        phone: `${formData.countryCode}${formData.phone}`,
         password: formData.password,
       });
 
       if (result.success) {
-        // Registration successful - redirect to login
-        navigate('/auth/login', {
+        // Registration successful - redirect to phone verification
+        navigate('/auth/verify-phone', {
           state: {
-            message: t('auth.register.successMessage'),
+            phoneNumber: formData.phone,
             email: formData.email,
+            message: 'Please verify your phone number to continue',
           },
         });
       } else {
-        setError(result.error?.message || t('auth.register.alertError'));
+        // Handle field-specific validation errors
+        handleRegistrationError(result.error);
       }
     } catch (error) {
       setError(t('auth.register.alertError'));
     }
   };
 
+  const handleRegistrationError = (error) => {
+    // Handle field-specific validation errors
+    if (error && typeof error === 'object') {
+      const errorData = error.data || error;
+      
+      const errors = {};
+      Object.keys(errorData).forEach(field => {
+        if (Array.isArray(errorData[field])) {
+          errors[field] = errorData[field][0];
+        }
+      });
+      
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors);
+      } else {
+        setError(error?.message || t('auth.register.alertError'));
+      }
+    } else {
+      setError(error?.message || t('auth.register.alertError'));
+    }
+  };
   const handleGoogleSignIn = () => {
     alert(t('auth.register.googleDev'));
   };
@@ -156,10 +244,77 @@ export default function Register() {
                     placeholder={t('auth.register.emailPlaceholder')}
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="pl-10 bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-white/50"
+                    className={`pl-10 bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-white/50 ${
+                      fieldErrors.email ? 'border-red-500' : ''
+                    }`}
                     required
                   />
                 </div>
+                {fieldErrors.email && (
+                  <p className="text-red-400 text-sm">{fieldErrors.email}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone" className="text-white">
+                  Phone Number
+                </Label>
+                <div className="flex gap-2">
+                  {/* Country Code Dropdown */}
+                  <div className="relative" ref={dropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowCountryDropdown(!showCountryDropdown)}
+                      className="flex items-center gap-2 px-3 py-2 bg-white/10 border border-white/30 text-white rounded-md hover:bg-white/20 focus:outline-none focus:border-white/50 min-w-[120px]"
+                    >
+                      <span className="text-lg">
+                        {countryCodes.find(c => c.code === formData.countryCode)?.flag}
+                      </span>
+                      <span className="text-sm">{formData.countryCode}</span>
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+                    
+                    {showCountryDropdown && (
+                      <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-10 max-h-60 overflow-y-auto">
+                        {countryCodes.map((country) => (
+                          <button
+                            key={country.code}
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, countryCode: country.code }));
+                              setShowCountryDropdown(false);
+                            }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50 focus:outline-none"
+                          >
+                            <span className="text-lg">{country.flag}</span>
+                            <span className="text-sm font-medium">{country.code}</span>
+                            <span className="text-sm text-gray-600">{country.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Phone Number Input */}
+                  <div className="relative flex-1">
+                    <Phone className="absolute left-3 top-3 h-4 w-4 text-white/60" />
+                    <Input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      placeholder="969850699"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      className={`pl-10 bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-white/50 ${
+                        fieldErrors.phone ? 'border-red-500' : ''
+                      }`}
+                      required
+                    />
+                  </div>
+                </div>
+                {fieldErrors.phone && (
+                  <p className="text-red-400 text-sm">{fieldErrors.phone}</p>
+                )}
               </div>
 
               <div className="space-y-2">

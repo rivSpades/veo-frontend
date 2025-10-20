@@ -36,9 +36,20 @@ export function ProtectedRoute({ children, requireAdmin = false }) {
     return <Navigate to="/auth/login" replace />;
   }
 
-  // Redirect to onboarding if user doesn't have any instances (hasn't completed onboarding)
+  // Step 1: Redirect to phone verification if user is not phone verified
+  if (!user?.is_phone_verified) {
+    console.log('ProtectedRoute: User phone not verified, redirecting to phone verification', {
+      user: user,
+      is_phone_verified: user?.is_phone_verified,
+      has_instances: user?.has_instances,
+      instances: user?.instances
+    });
+    return <Navigate to="/auth/verify-phone" replace />;
+  }
+
+  // Step 2: Redirect to onboarding if user doesn't have any instances (hasn't completed onboarding)
   if (!user?.has_instances && (!user?.instances || user.instances.length === 0)) {
-    console.log('User has no instances, redirecting to onboarding');
+    console.log('ProtectedRoute: User has no instances, redirecting to onboarding');
     return <Navigate to="/onboarding" replace />;
   }
   
@@ -91,6 +102,39 @@ export function PublicRoute({ children }) {
 }
 
 /**
+ * AuthRequiredRoute component
+ * Wraps routes that require authentication but don't redirect authenticated users
+ * Used for phone verification page
+ */
+export function AuthRequiredRoute({ children }) {
+  const { isLoading, isAuthenticated } = useAuth();
+
+  // Show loading spinner while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center"
+        >
+          <Loader2 className="h-12 w-12 animate-spin text-purple-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading...</p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!isAuthenticated()) {
+    return <Navigate to="/auth/login" replace />;
+  }
+
+  // Allow access for authenticated users (no redirect)
+  return children;
+}
+
+/**
  * OnboardingRoute component
  * Wraps onboarding route that should only be accessible for authenticated users without an instance
  * Redirects to login if not authenticated
@@ -120,9 +164,20 @@ export function OnboardingRoute({ children }) {
     return <Navigate to="/auth/login" replace />;
   }
 
-  // Redirect to dashboard if user already has instances (completed onboarding)
+  // Step 1: Redirect to phone verification if user is not phone verified
+  if (!user?.is_phone_verified) {
+    console.log('OnboardingRoute: User phone not verified, redirecting to phone verification', {
+      user: user,
+      is_phone_verified: user?.is_phone_verified,
+      has_instances: user?.has_instances,
+      instances: user?.instances
+    });
+    return <Navigate to="/auth/verify-phone" replace />;
+  }
+
+  // Step 2: Redirect to dashboard if user already has instances (completed onboarding)
   if (user?.has_instances || user?.instances?.length > 0) {
-    console.log('User has instances, redirecting to dashboard');
+    console.log('OnboardingRoute: User has instances, redirecting to dashboard');
     return <Navigate to="/dashboard" replace />;
   }
 

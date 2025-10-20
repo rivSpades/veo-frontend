@@ -1,9 +1,11 @@
 import { createBrowserRouter } from 'react-router-dom';
-import { ProtectedRoute, PublicRoute, OnboardingRoute } from './components/ProtectedRoute';
+import { ProtectedRoute, PublicRoute, OnboardingRoute, AuthRequiredRoute } from './components/ProtectedRoute';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import VerifyMagicLink from './pages/VerifyMagicLink';
+import VerifyPhone from './pages/VerifyPhone';
+import ChangePhone from './pages/ChangePhone';
 import Onboarding from './pages/Onboarding';
 import Preview from './pages/Preview';
 import Dashboard from './pages/Dashboard';
@@ -32,13 +34,23 @@ const router = createBrowserRouter([
   },
   {
     path: '/auth/register',
-    element: <PublicRoute><Register /></PublicRoute>,
+    element: <Register />,
     loader: Register.loader,
   },
   {
     path: '/auth/verify',
     element: <VerifyMagicLink />,
     loader: VerifyMagicLink.loader,
+  },
+  {
+    path: '/auth/verify-phone',
+    element: <AuthRequiredRoute><VerifyPhone /></AuthRequiredRoute>,
+    loader: VerifyPhone.loader,
+  },
+  {
+    path: '/auth/change-phone',
+    element: <AuthRequiredRoute><ChangePhone /></AuthRequiredRoute>,
+    loader: ChangePhone.loader,
   },
   {
     path: '/onboarding',
