@@ -26,17 +26,26 @@ export default function VerifyPhone() {
   const { refreshUser, user } = useAuth();
   
   const { phoneNumber: statePhoneNumber, email, message } = location.state || {};
-  const phoneNumber = statePhoneNumber || user?.phone;
+  // Always prioritize backend user data as source of truth
+  const phoneNumber = user?.phone || statePhoneNumber;
 
   // Redirect if no phone number provided or if already verified
   useEffect(() => {
     console.log('VerifyPhone: Checking user state', {
       phoneNumber,
+      userPhone: user?.phone,
+      statePhoneNumber,
       user,
       is_phone_verified: user?.is_phone_verified,
       has_instances: user?.has_instances,
       instances: user?.instances
     });
+    
+    // Wait for user data to load
+    if (!user) {
+      console.log('VerifyPhone: User data not loaded yet, waiting...');
+      return;
+    }
     
     if (!phoneNumber) {
       console.log('VerifyPhone: No phone number, redirecting to register');
@@ -136,6 +145,10 @@ export default function VerifyPhone() {
   const handleSendCode = async () => {
     if (!phoneNumber) return;
 
+    console.log('handleSendCode: Sending phone number:', phoneNumber);
+    console.log('handleSendCode: User phone from backend:', user?.phone);
+    console.log('handleSendCode: State phone number:', statePhoneNumber);
+
     setIsSending(true);
     setError('');
 
@@ -216,6 +229,12 @@ export default function VerifyPhone() {
             setCanResend(true);
             // Only show phone change link if there's no active code
             setShowPhoneInput(!response.data.has_active_code);
+            
+            // If we can send and there's no active code, automatically request verification
+            if (response.data.can_send && !response.data.has_active_code && phoneNumber) {
+              console.log('Automatically requesting phone verification code');
+              await handleSendCode();
+            }
           }
         }
       } catch (error) {
@@ -226,7 +245,7 @@ export default function VerifyPhone() {
     };
 
     checkCooldownStatus();
-  }, []);
+  }, [phoneNumber]);
 
   // Update cooldown timer
   useEffect(() => {

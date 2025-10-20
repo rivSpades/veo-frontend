@@ -139,7 +139,6 @@ export default function Register() {
         // Registration successful - redirect to phone verification
         navigate('/auth/verify-phone', {
           state: {
-            phoneNumber: formData.phone,
             email: formData.email,
             message: 'Please verify your phone number to continue',
           },
