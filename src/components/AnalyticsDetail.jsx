@@ -279,3 +279,5 @@ export function AnalyticsDetail({ isOpen, onClose, type, menuId = 'all' }) {
   );
 }
 
+
+

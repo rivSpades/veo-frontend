@@ -39,7 +39,7 @@ export function DashboardLayout({
         />
 
         {/* Main Content */}
-        <main className="flex-1 bg-gray-50 overflow-y-auto px-4 md:px-0">{children}</main>
+        <main className="flex-1 bg-gray-50 overflow-y-auto overflow-x-hidden w-full max-w-full px-3 md:px-6">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   );

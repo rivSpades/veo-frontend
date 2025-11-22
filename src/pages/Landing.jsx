@@ -82,32 +82,34 @@ function Landing() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-600 to-purple-700">
       {/* Header */}
-      <header className="border-b border-white/10 bg-white/5 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-3 md:py-4 flex justify-between items-center">
+      <header className="border-b border-white/10 bg-white/5 backdrop-blur-sm sticky top-0 z-50 w-full overflow-x-hidden">
+        <div className="container mx-auto px-3 md:px-4 py-2 md:py-4 flex justify-between items-center gap-2 w-full max-w-full">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="flex items-center space-x-2"
+            className="flex items-center space-x-1 md:space-x-2 flex-shrink-0 min-w-0"
           >
-            <QrCode className="h-6 w-6 md:h-8 md:w-8 text-white" />
-            <span className="text-xl md:text-2xl font-bold text-white">{t('app.name')}</span>
+            <QrCode className="h-5 w-5 md:h-8 md:w-8 text-white flex-shrink-0" />
+            <span className="text-base md:text-xl lg:text-2xl font-bold text-white truncate">{t('app.name')}</span>
           </motion.div>
 
-          <div className="flex items-center gap-2 md:gap-3">
-            <LanguageSwitcher />
-            <Link to="/auth/login">
+          <div className="flex items-center gap-1 md:gap-2 lg:gap-3 flex-shrink-0">
+            <div className="hidden sm:block">
+              <LanguageSwitcher />
+            </div>
+            <Link to="/auth/login" className="flex-shrink-0">
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-sm md:text-base text-gray-900 hover:bg-gray-100 bg-white/90"
+                className="text-xs md:text-sm lg:text-base text-gray-900 hover:bg-gray-100 bg-white/90 px-2 md:px-3 h-7 md:h-9 whitespace-nowrap"
               >
                 {t('auth.login')}
               </Button>
             </Link>
-            <Link to="/auth/register">
+            <Link to="/auth/register" className="flex-shrink-0">
               <Button
                 size="sm"
-                className="text-sm md:text-base bg-white text-purple-600 hover:bg-white/90"
+                className="text-xs md:text-sm lg:text-base bg-white text-purple-600 hover:bg-white/90 px-2 md:px-3 h-7 md:h-9 whitespace-nowrap"
               >
                 {t('auth.register')}
               </Button>

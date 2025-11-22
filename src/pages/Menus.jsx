@@ -11,7 +11,6 @@ import { useToast } from '../components/ui/Toast';
 import { useTranslation } from '../store/LanguageContext';
 import {
   Search,
-  Filter,
   Grid3X3,
   List,
   Plus,
@@ -42,6 +41,7 @@ import { getMenus as fetchMenus, getMenuById, updateMenu as updateMenuAPI, delet
 import { instancesAPI } from '../data/api';
 import { MenuPreviewModal } from '../components/MenuPreviewModal';
 import { ScheduleDialog } from '../components/ScheduleDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/Dialog';
 
 // Available icons mapping
 const iconComponents = {
@@ -111,12 +111,12 @@ export default function Menus() {
   const [filteredMenus, setFilteredMenus] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [languageFilter, setLanguageFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [viewMode, setViewMode] = useState('grid');
   const [previewMenu, setPreviewMenu] = useState(null);
   const [scheduleMenu, setScheduleMenu] = useState(null);
   const [restaurant, setRestaurant] = useState(null);
+  const [deleteMenuId, setDeleteMenuId] = useState(null);
+  const [deleteMenuName, setDeleteMenuName] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -137,22 +137,10 @@ export default function Menus() {
       );
     }
 
-    // Language filter
-    if (languageFilter !== 'all') {
-      filtered = filtered.filter((menu) => menu.languages && menu.languages.includes(languageFilter));
-    }
-
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter((menu) => {
-        if (statusFilter === 'active') return menu.enabled;
-        if (statusFilter === 'inactive') return !menu.enabled;
-        return true;
-      });
-    }
+    // Filters removed - only search remains
 
     setFilteredMenus(filtered);
-  }, [menus, searchQuery, languageFilter, statusFilter]);
+  }, [menus, searchQuery]);
 
   const loadMenus = async () => {
     try {
@@ -171,7 +159,15 @@ export default function Menus() {
       const menusResponse = await fetchMenus(instanceId);
 
       if (menusResponse.success) {
-        setMenus(menusResponse.data.results || menusResponse.data);
+        const menusData = menusResponse.data.results || menusResponse.data;
+        // Ensure schedule field exists for each menu (default to empty object if missing)
+        const normalizedMenus = Array.isArray(menusData) 
+          ? menusData.map(menu => ({
+              ...menu,
+              schedule: menu.schedule || {},
+            }))
+          : [];
+        setMenus(normalizedMenus);
       } else {
         toast({
           title: 'Error',
@@ -205,25 +201,28 @@ export default function Menus() {
 
   const handleToggleMenu = async (menuId, isActive) => {
     try {
+      // If activating a menu, deactivate all others first
+      if (isActive) {
+        const activeMenus = menus.filter(m => m.is_active && m.id !== menuId);
+        for (const menu of activeMenus) {
+          await toggleMenuStatus(menu.id, false);
+        }
+      }
+
       const response = await toggleMenuStatus(menuId, isActive);
 
       if (response.success) {
-        // Update local state
-        setMenus(menus.map((menu) =>
-          menu.id === menuId ? { ...menu, is_active: isActive } : menu
-        ));
-
-        toast({
-          title: t('menus.success') || 'Success',
-          description: isActive ? t('menus.activated') : t('menus.deactivated'),
-          type: 'success',
-        });
+        // Reload menus to get fresh data from backend
+        await loadMenus();
+        // No success toast for activation/deactivation
       } else {
         toast({
           title: 'Error',
           description: response.error?.message || 'Failed to update menu status',
           type: 'error',
         });
+        // Reload to revert UI state
+        await loadMenus();
       }
     } catch (error) {
       console.error('Error toggling menu:', error);
@@ -232,6 +231,8 @@ export default function Menus() {
         description: 'Failed to update menu status',
         type: 'error',
       });
+      // Reload to revert UI state
+      await loadMenus();
     }
   };
 
@@ -268,39 +269,43 @@ export default function Menus() {
     }
   };
 
-  const handleDeleteMenu = async (menuId) => {
-    if (!menuId) {
-      console.error('Invalid menu ID:', menuId);
+  const handleDeleteMenu = (menuId, menuName) => {
+    setDeleteMenuId(menuId);
+    setDeleteMenuName(menuName);
+  };
+
+  const confirmDeleteMenu = async () => {
+    if (!deleteMenuId) {
       return;
     }
 
-    if (window.confirm(t('menus.confirmDelete') || 'Are you sure you want to delete this menu?')) {
-      try {
-        const response = await deleteMenuAPI(menuId);
+    try {
+      const response = await deleteMenuAPI(deleteMenuId);
 
-        if (response.success) {
-          // Filter out the deleted menu
-          setMenus((prevMenus) => prevMenus.filter((menu) => menu.id !== menuId));
+      if (response.success) {
+        // Filter out the deleted menu
+        setMenus((prevMenus) => prevMenus.filter((menu) => menu.id !== deleteMenuId));
         toast({
           title: t('menus.success') || 'Success',
           description: t('menus.deleted') || 'Menu deleted successfully',
           type: 'success',
         });
-        } else {
-          toast({
-            title: 'Error',
-            description: response.error?.message || 'Failed to delete menu',
-            type: 'error',
-          });
-        }
-      } catch (error) {
-        console.error('Error deleting menu:', error);
+        setDeleteMenuId(null);
+        setDeleteMenuName('');
+      } else {
         toast({
           title: 'Error',
-          description: 'Failed to delete menu',
+          description: response.error?.message || 'Failed to delete menu',
           type: 'error',
         });
       }
+    } catch (error) {
+      console.error('Error deleting menu:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete menu',
+        type: 'error',
+      });
     }
   };
 
@@ -316,12 +321,14 @@ export default function Menus() {
       try {
         const response = await updateMenuAPI(scheduleMenu.id, { schedule });
         if (response.success) {
-          setMenus(menus.map((menu) => (menu.id === scheduleMenu.id ? response.data : menu)));
-        toast({
-          title: t('menus.success') || 'Success',
-          description: t('menus.scheduleSaved') || 'Schedule saved successfully',
-          type: 'success',
-        });
+          // Reload menus to get fresh data from backend
+          await loadMenus();
+          setScheduleMenu(null);
+          toast({
+            title: t('menus.success') || 'Success',
+            description: t('menus.scheduleSaved') || 'Schedule saved successfully',
+            type: 'success',
+          });
         } else {
           toast({
             title: 'Error',
@@ -337,6 +344,38 @@ export default function Menus() {
           type: 'error',
         });
       }
+    }
+  };
+
+  const handleClearSchedule = async (menuId) => {
+    try {
+      // Get current menu to preserve other schedule data
+      const menu = menus.find(m => m.id === menuId);
+      const clearedSchedule = menu?.schedule ? { ...menu.schedule, enabled: false } : { enabled: false };
+      
+      const response = await updateMenuAPI(menuId, { schedule: clearedSchedule });
+      if (response.success) {
+        // Reload menus to get fresh data from backend
+        await loadMenus();
+        toast({
+          title: t('menus.success') || 'Success',
+          description: t('menus.scheduleCleared') || 'Schedule cleared successfully',
+          type: 'success',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: response.error?.message || 'Failed to clear schedule',
+          type: 'error',
+        });
+      }
+    } catch (error) {
+      console.error('Error clearing schedule:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to clear schedule',
+        type: 'error',
+      });
     }
   };
 
@@ -485,16 +524,17 @@ export default function Menus() {
       title={t('menus.title')}
       subtitle={t('menus.subtitle')}
       action={
-        <Button onClick={handleCreateMenu} className="bg-purple-600 hover:bg-purple-700">
-          <Plus className="w-4 h-4 mr-2" />
-          {t('menus.newMenu')}
+        <Button onClick={handleCreateMenu} className="bg-purple-600 hover:bg-purple-700 text-sm md:text-base">
+          <Plus className="w-4 h-4 md:mr-2" />
+          <span className="hidden md:inline">{t('menus.newMenu')}</span>
+          <span className="md:hidden">{t('menus.new')}</span>
         </Button>
       }
     >
-      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-        {/* Search and Filters */}
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-md">
+      <div className="p-3 md:p-6 space-y-4 md:space-y-6 w-full max-w-full overflow-x-hidden">
+        {/* Search */}
+        <div className="flex items-center gap-2 md:gap-4 w-full">
+          <div className="relative flex-1 w-full max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
               placeholder={t('menus.searchPlaceholder')}
@@ -503,35 +543,15 @@ export default function Menus() {
               className="pl-10 h-9"
             />
           </div>
-
-          <Select value={languageFilter} onChange={(e) => setLanguageFilter(e.target.value)} className="w-40 h-9">
-            <option value="all">{t('menus.allLanguages')}</option>
-            <option value="en">{t('menus.language.en')}</option>
-            <option value="pt">{t('menus.language.pt')}</option>
-            <option value="es">{t('menus.language.es')}</option>
-            <option value="fr">{t('menus.language.fr')}</option>
-            <option value="de">{t('menus.language.de')}</option>
-            <option value="it">{t('menus.language.it')}</option>
-          </Select>
-
-          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-32 h-9">
-            <option value="all">{t('menus.allStatus')}</option>
-            <option value="active">{t('menus.status.active')}</option>
-            <option value="inactive">{t('menus.status.inactive')}</option>
-          </Select>
-
-          <Button variant="outline" size="icon" title="Filter" className="h-9 w-9">
-            <Filter className="h-4 w-4" />
-          </Button>
         </div>
 
         {/* Section Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">{t('menus.yourMenus').replace('{count}', filteredMenus.length)}</h2>
-            <p className="text-sm text-gray-600">{t('menus.manageAll')}</p>
+        <div className="flex items-center justify-between gap-2 w-full">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg md:text-xl font-semibold truncate">{t('menus.yourMenus').replace('{count}', filteredMenus.length)}</h2>
+            <p className="text-xs md:text-sm text-gray-600 truncate">{t('menus.manageAll')}</p>
           </div>
-          <div className="flex gap-1 border rounded-md">
+          <div className="flex gap-1 border rounded-md flex-shrink-0">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'ghost'}
               size="icon"
@@ -565,18 +585,18 @@ export default function Menus() {
             </Button>
           </div>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 w-full">
             {filteredMenus.map((menu) => {
               const { icon: IconComponent, color } = getMenuIcon(menu);
               return (
-                <Card key={menu.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    {/* Icon and Status */}
+                <Card key={menu.id} className="hover:shadow-md transition-shadow w-full">
+                  <CardContent className="p-4 md:p-6 w-full">
+                      {/* Icon and Status */}
                     <div className="flex items-center justify-between mb-4">
                       <div className={`p-3 rounded-lg ${color}`}>
                         <IconComponent className="w-6 h-6 text-white" />
                       </div>
-                      {menu.enabled ? (
+                      {menu.is_active ? (
                         <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">{t('menus.status.active')}</Badge>
                       ) : (
                         <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">{t('menus.status.inactive')}</Badge>
@@ -594,19 +614,51 @@ export default function Menus() {
                       </div>
 
                       {/* Schedule Info (if present) */}
-                      {menu.schedule?.enabled && (
-                        <div className="flex items-center gap-1 text-sm text-blue-600">
-                          <Clock className="w-4 h-4" />
-                          <span>
-                            {menu.schedule.startTime} - {menu.schedule.endTime}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Schedule Status Info */}
-                      {menu.schedule?.enabled && (
-                        <div className="text-xs text-gray-500">
-                          Next change: {menu.schedule.startTime} - {menu.schedule.endTime}
+                      {menu.schedule && typeof menu.schedule === 'object' && menu.schedule.enabled === true && (
+                        <div className="space-y-2 pt-2 border-t">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1 text-sm text-blue-600">
+                              <Clock className="w-4 h-4" />
+                              <span className="font-medium">{t('menus.scheduled')}</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleClearSchedule(menu.id)}
+                              className="text-xs h-6 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              {t('menus.clearSchedule')}
+                            </Button>
+                          </div>
+                          <div className="text-xs text-gray-600 space-y-1">
+                            {menu.schedule.startTime && menu.schedule.endTime && (
+                              <div>
+                                <span className="font-medium">{t('menus.time')}:</span> {menu.schedule.startTime} - {menu.schedule.endTime}
+                              </div>
+                            )}
+                            {menu.schedule.days && Array.isArray(menu.schedule.days) && menu.schedule.days.length > 0 && (
+                              <div>
+                                <span className="font-medium">{t('menus.days')}:</span>{' '}
+                                {menu.schedule.days.map((day, index) => {
+                                  const dayNames = {
+                                    monday: t('menus.day.monday'),
+                                    tuesday: t('menus.day.tuesday'),
+                                    wednesday: t('menus.day.wednesday'),
+                                    thursday: t('menus.day.thursday'),
+                                    friday: t('menus.day.friday'),
+                                    saturday: t('menus.day.saturday'),
+                                    sunday: t('menus.day.sunday'),
+                                  };
+                                  const dayName = dayNames[day?.toLowerCase()] || day;
+                                  return (
+                                    <span key={index}>
+                                      {dayName}{index < menu.schedule.days.length - 1 ? ', ' : ''}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -629,7 +681,7 @@ export default function Menus() {
                       <div className="flex items-center justify-between pt-2">
                         <span className="text-sm text-gray-600">{t('menus.manualOverride')}</span>
                         <Switch
-                          checked={menu.enabled || false}
+                          checked={menu.is_active || false}
                           onCheckedChange={(checked) => handleToggleMenu(menu.id, checked)}
                           disabled={false}
                         />
@@ -678,7 +730,7 @@ export default function Menus() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleDeleteMenu(menu.id)}
+                        onClick={() => handleDeleteMenu(menu.id, menu.name)}
                         className="w-full text-xs h-8 text-red-600 hover:text-red-700"
                       >
                         <Trash2 className="w-3 h-3 mr-1" />
@@ -712,6 +764,36 @@ export default function Menus() {
           onSave={handleSaveSchedule}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteMenuId} onOpenChange={(open) => !open && setDeleteMenuId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('menus.confirmDelete') || 'Delete Menu'}</DialogTitle>
+            <DialogDescription>
+              {(t('menus.confirmDeleteDesc') || 'Are you sure you want to delete "{name}"? This action cannot be undone.').replace('{name}', deleteMenuName)}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteMenuId(null);
+                setDeleteMenuName('');
+              }}
+            >
+              {t('menu.cancel') || 'Cancel'}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteMenu}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {t('menus.delete') || 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

@@ -11,7 +11,7 @@ export function SidebarProvider({ children }) {
 
   return (
     <SidebarContext.Provider value={{ collapsed, toggleCollapsed, isMobileOpen, toggleMobile }}>
-      <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen w-full overflow-x-hidden max-w-full">
         {children}
       </div>
     </SidebarContext.Provider>
@@ -118,7 +118,7 @@ export function SidebarInset({ children }) {
   const { collapsed } = useSidebar();
 
   return (
-    <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${collapsed ? 'md:ml-16' : 'md:ml-64'}`}>
+    <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 w-full max-w-full overflow-x-hidden ${collapsed ? 'md:ml-16' : 'md:ml-64'}`}>
       {children}
     </div>
   );

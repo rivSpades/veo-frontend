@@ -6,14 +6,11 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Select } from '../components/ui/Select';
 import { useTranslation } from '../store/LanguageContext';
-import { AnalyticsDetail } from '../components/AnalyticsDetail';
 import { AIReport } from '../components/AIReport';
 import {
   Eye,
-  Users,
   Globe,
   TrendingUp,
-  TrendingDown,
   Plus,
   BarChart3,
   Pizza,
@@ -21,11 +18,12 @@ import {
   Wine,
   Sparkles,
   QrCode,
-  Clock,
-  ArrowRight,
+  Calendar,
+  Lock,
 } from 'lucide-react';
 import { getMenus } from '../utils/menuStorage';
 import { instancesAPI, menusAPI } from '../data/api';
+import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 /**
  * Dashboard Page - Analytics dashboard with KPIs and insights
@@ -38,10 +36,11 @@ function Dashboard() {
   const [selectedMenu, setSelectedMenu] = useState('all');
   const [restaurantName, setRestaurantName] = useState('Restaurant');
   const [dashboardStats, setDashboardStats] = useState(null);
-  const [todayViews, setTodayViews] = useState(0);
   const [todayScans, setTodayScans] = useState(0);
-  const [analyticsDetailOpen, setAnalyticsDetailOpen] = useState(false);
-  const [analyticsDetailType, setAnalyticsDetailType] = useState('views');
+  const [monthlyScans, setMonthlyScans] = useState([]);
+  const [weeklyScans, setWeeklyScans] = useState([]);
+  const [scansLoading, setScansLoading] = useState(true);
+  const [chartView, setChartView] = useState('monthly'); // 'monthly' or 'weekly'
   const [aiReportOpen, setAIReportOpen] = useState(false);
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -82,24 +81,102 @@ function Dashboard() {
   useEffect(() => {
     const loadDashboardStats = async () => {
       setStatsLoading(true);
+      setScansLoading(true);
       try {
         const response = await menusAPI.getDashboardStats(7);
         if (response.success) {
           setDashboardStats(response.data);
         }
 
-        // Load today's views and scans
+        // Load today's scans
         const todayResponse = await menusAPI.getDetailedAnalytics(selectedMenu, 1, 'views');
         if (todayResponse.success && todayResponse.data) {
           const today = new Date().toISOString().split('T')[0];
           const todayCount = todayResponse.data.views_by_day?.[today] || 0;
-          setTodayViews(todayCount);
-          setTodayScans(todayCount); // Scans are the same as views (QR code scans create views)
+          setTodayScans(todayCount);
+        }
+
+        // Load scans data for charts (last 6 months)
+        const scansResponse = await menusAPI.getDetailedAnalytics(selectedMenu, 180, 'views');
+        if (scansResponse.success && scansResponse.data) {
+          const viewsByDay = scansResponse.data.views_by_day || {};
+          const totalScans = scansResponse.data.total_views || 0;
+          
+          // Only process if there's actual data
+          if (totalScans > 0 && Object.keys(viewsByDay).length > 0) {
+            // Process monthly data
+            const monthlyData = {};
+            Object.entries(viewsByDay).forEach(([date, count]) => {
+              if (count > 0) {
+                const dateObj = new Date(date);
+                const year = dateObj.getFullYear();
+                const month = dateObj.getMonth();
+                const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+                monthlyData[monthKey] = (monthlyData[monthKey] || 0) + count;
+              }
+            });
+            
+            // Convert to array and sort by date
+            const monthlyArray = Object.entries(monthlyData)
+              .map(([monthKey, scans]) => {
+                const [year, month] = monthKey.split('-');
+                const dateObj = new Date(parseInt(year), parseInt(month) - 1);
+                const monthName = dateObj.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                return { month: monthName, scans, sortKey: monthKey };
+              })
+              .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+              .slice(-6) // Last 6 months
+              .map(({ month, scans }) => ({ month, scans }));
+            
+            setMonthlyScans(monthlyArray);
+
+            // Process weekly data (by day of week)
+            const weeklyData = {
+              'Mon': 0,
+              'Tue': 0,
+              'Wed': 0,
+              'Thu': 0,
+              'Fri': 0,
+              'Sat': 0,
+              'Sun': 0,
+            };
+            
+            Object.entries(viewsByDay).forEach(([date, count]) => {
+              if (count > 0) {
+                const dateObj = new Date(date);
+                const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                if (weeklyData.hasOwnProperty(dayOfWeek)) {
+                  weeklyData[dayOfWeek] += count;
+                }
+              }
+            });
+            
+            const weeklyArray = [
+              { day: 'Mon', scans: weeklyData['Mon'] },
+              { day: 'Tue', scans: weeklyData['Tue'] },
+              { day: 'Wed', scans: weeklyData['Wed'] },
+              { day: 'Thu', scans: weeklyData['Thu'] },
+              { day: 'Fri', scans: weeklyData['Fri'] },
+              { day: 'Sat', scans: weeklyData['Sat'] },
+              { day: 'Sun', scans: weeklyData['Sun'] },
+            ];
+            
+            setWeeklyScans(weeklyArray);
+          } else {
+            // No data - set empty arrays
+            setMonthlyScans([]);
+            setWeeklyScans([]);
+          }
+        } else {
+          // API call failed or no data
+          setMonthlyScans([]);
+          setWeeklyScans([]);
         }
       } catch (error) {
         console.error('Error loading dashboard stats:', error);
       } finally {
         setStatsLoading(false);
+        setScansLoading(false);
       }
     };
 
@@ -107,13 +184,9 @@ function Dashboard() {
       loadDashboardStats();
     } else {
       setStatsLoading(false);
+      setScansLoading(false);
     }
   }, [menus, selectedMenu]);
-
-  const handleCardClick = (type) => {
-    setAnalyticsDetailType(type);
-    setAnalyticsDetailOpen(true);
-  };
 
   useEffect(() => {
     const loadRestaurantName = async () => {
@@ -137,6 +210,24 @@ function Dashboard() {
     navigate('/dashboard/menus/create');
   };
 
+  // Helper function to check if there's actual data (not just zeros)
+  const hasData = (data) => {
+    if (!data || data.length === 0) return false;
+    return data.some(item => (item.scans || item.views || 0) > 0);
+  };
+
+  // Check if scans data has actual values
+  const hasScansData = hasData(chartView === 'monthly' ? monthlyScans : weeklyScans);
+  const hasTodayScans = todayScans > 0;
+  
+  // Check if menus have views (for Popular Menus)
+  const hasMenuViews = menus.some(menu => (menu.views || menu.view_count || 0) > 0);
+  
+  // For now, Popular Dishes/Sections/Subsections are locked until item-level analytics are implemented
+  const hasPopularDishesData = false; // Will be true when item-level analytics are available
+  const hasPopularSectionsData = false; // Will be true when item-level analytics are available
+  const hasPopularSubsectionsData = false; // Will be true when item-level analytics are available
+
   // Empty state when no menus exist
   if (!loading && menus.length === 0) {
     return (
@@ -144,8 +235,8 @@ function Dashboard() {
         title={t('dashboard.welcome')}
         subtitle={t('dashboard.welcomeSubtitle')}
       >
-        <div className="p-6 flex items-center justify-center min-h-[calc(100vh-200px)]">
-          <Card className="max-w-2xl w-full">
+        <div className="p-3 md:p-6 flex items-center justify-center min-h-[calc(100vh-200px)] w-full max-w-full overflow-x-hidden">
+          <Card className="max-w-2xl w-full mx-auto">
             <CardContent className="p-12 text-center">
               <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Sparkles className="w-10 h-10 text-purple-600" />
@@ -194,14 +285,14 @@ function Dashboard() {
         title={t('dashboard.welcomeBack').replace('{name}', restaurantName)}
         subtitle={t('dashboard.welcomeBackSubtitle')}
       >
-        <div className="p-6">
-          <div className="animate-pulse space-y-6">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="p-3 md:p-6 w-full max-w-full overflow-x-hidden">
+          <div className="animate-pulse space-y-4 md:space-y-6">
+            <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 w-full">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
               ))}
             </div>
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 w-full">
               {[...Array(6)].map((_, i) => (
                 <div key={i} className="h-64 bg-gray-200 rounded-lg"></div>
               ))}
@@ -225,17 +316,6 @@ function Dashboard() {
     return acc;
   }, new Set()).size || 0;
   const activeLanguages = totalLanguages;
-
-  // Use real weekly scans if available, otherwise use fallback
-  const weeklyScans = dashboardStats?.weeklyScans || [
-    { day: 'Mon', scans: 0 },
-    { day: 'Tue', scans: 0 },
-    { day: 'Wed', scans: 0 },
-    { day: 'Thu', scans: 0 },
-    { day: 'Fri', scans: 0 },
-    { day: 'Sat', scans: 0 },
-    { day: 'Sun', scans: 0 },
-  ];
 
   const monthlyViews = [
     { month: 'Jan', views: 1240 },
@@ -268,26 +348,35 @@ function Dashboard() {
     { name: t('dashboard.language.spanish'), code: 'ES', percentage: 0, flag: '🇪🇸' },
   ]);
 
-  const popularDishes = [
+  // Popular dishes - locked until item-level analytics are implemented
+  const popularDishes = hasPopularDishesData ? [
     { name: 'Bacalhau à Brás', views: 124, icon: '🐟' },
     { name: 'Bruschetta Italiana', views: 98, icon: '🍞' },
     { name: 'Douro Reserva', views: 87, icon: '🍷' },
     { name: 'Francesinha', views: 76, icon: '🥪' },
-  ];
+  ] : [];
 
-  const popularSections = [
+  // Popular sections - locked until section-level analytics are implemented
+  const popularSections = hasPopularSectionsData ? [
     { name: t('dashboard.section.mainCourses'), views: 456, icon: Utensils },
     { name: t('dashboard.section.appetizers'), views: 342, icon: Pizza },
     { name: t('dashboard.section.winesBeverages'), views: 298, icon: Wine },
     { name: t('dashboard.section.desserts'), views: 187, icon: '🍰' },
-  ];
+  ] : [];
 
-  const popularSubsections = [
+  // Popular subsections - locked until subsection-level analytics are implemented
+  const popularSubsections = hasPopularSubsectionsData ? [
     { name: t('dashboard.subsection.grilledSpecialties'), views: 234, section: t('dashboard.section.mainCourses') },
     { name: t('dashboard.subsection.coldAppetizers'), views: 198, section: t('dashboard.section.appetizers') },
     { name: t('dashboard.subsection.houseWines'), views: 156, section: t('dashboard.section.winesBeverages') },
     { name: t('dashboard.subsection.traditionalDesserts'), views: 134, section: t('dashboard.section.desserts') },
-  ];
+  ] : [];
+  
+  // Popular menus - use actual menu data sorted by views
+  const popularMenus = menus
+    .filter(menu => hasMenuViews ? true : (menu.views || menu.view_count || 0) > 0)
+    .sort((a, b) => (b.views || b.view_count || 0) - (a.views || a.view_count || 0))
+    .slice(0, 4);
 
   // Filter data based on selected menu
   const filteredMenus = selectedMenu === 'all' ? menus : menus.filter((m) => m.id === selectedMenu);
@@ -337,69 +426,127 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* KPI Cards - Simplified to 2 main metrics */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card 
-            className="bg-blue-50 border-blue-200 cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => handleCardClick('views')}
-          >
+        {/* KPI Card - Today Scans */}
+        <div className="grid gap-6 md:grid-cols-1 max-w-md">
+          <Card className={`bg-purple-50 border-purple-200 ${!hasTodayScans && !statsLoading ? 'opacity-60' : ''}`}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Eye className="w-6 h-6 text-blue-600" />
+                <div className={`p-2 rounded-lg ${hasTodayScans ? 'bg-purple-100' : 'bg-gray-200'}`}>
+                  {hasTodayScans ? (
+                    <QrCode className="w-6 h-6 text-purple-600" />
+                  ) : (
+                    <Lock className="w-6 h-6 text-gray-400" />
+                  )}
                 </div>
-                <ArrowRight className="w-5 h-5 text-gray-400" />
               </div>
               <div className="mt-4">
-                <div className="text-3xl font-bold text-gray-900">
-                  {statsLoading ? '...' : todayViews.toLocaleString()}
-                </div>
-                <div className="text-sm text-gray-600 mt-1">{t('dashboard.viewsToday')}</div>
-                <div className="text-xs text-blue-600 mt-2 flex items-center gap-1">
-                  {t('dashboard.clickForDetails')}
-                  <ArrowRight className="w-3 h-3" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card 
-            className="bg-purple-50 border-purple-200 cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => handleCardClick('scans')}
-          >
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <QrCode className="w-6 h-6 text-purple-600" />
-                </div>
-                <ArrowRight className="w-5 h-5 text-gray-400" />
-              </div>
-              <div className="mt-4">
-                <div className="text-3xl font-bold text-gray-900">
-                  {statsLoading ? '...' : todayScans.toLocaleString()}
-                </div>
-                <div className="text-sm text-gray-600 mt-1">{t('dashboard.scansToday')}</div>
-                <div className="text-xs text-purple-600 mt-2 flex items-center gap-1">
-                  {t('dashboard.clickForDetails')}
-                  <ArrowRight className="w-3 h-3" />
-                </div>
+                {statsLoading ? (
+                  <div className="text-3xl font-bold text-gray-900">...</div>
+                ) : hasTodayScans ? (
+                  <>
+                    <div className="text-3xl font-bold text-gray-900">
+                      {todayScans.toLocaleString()}
+                    </div>
+                    <div className="text-sm text-gray-600 mt-1">{t('dashboard.scansToday')}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-3xl font-bold text-gray-400">0</div>
+                    <div className="text-sm text-gray-500 mt-1">{t('dashboard.scansToday')}</div>
+                    <div className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                      <Lock className="w-3 h-3" />
+                      {t('dashboard.needsMoreData')}
+                    </div>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Performance Evolution Chart */}
-        <Card>
+        {/* Scans Evolution Chart - Combined Stacked Bar + Line */}
+        <Card className={!hasScansData && !scansLoading ? 'opacity-60' : ''}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-              {t('dashboard.performanceEvolution')}
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                {hasScansData ? (
+                  <TrendingUp className="w-5 h-5 text-purple-600" />
+                ) : (
+                  <Lock className="w-5 h-5 text-gray-400" />
+                )}
+                {t('dashboard.scansEvolution')}
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={chartView === 'monthly' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setChartView('monthly')}
+                  disabled={!hasScansData}
+                  className={chartView === 'monthly' ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                >
+                  {t('dashboard.monthly')}
+                </Button>
+                <Button
+                  variant={chartView === 'weekly' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setChartView('weekly')}
+                  disabled={!hasScansData}
+                  className={chartView === 'weekly' ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                >
+                  {t('dashboard.weekly')}
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-12 text-gray-500">
-              {t('dashboard.clickCardsAbove')}
-            </div>
+            {scansLoading ? (
+              <div className="h-64 flex items-center justify-center">
+                <div className="animate-pulse text-gray-400">{t('dashboard.loading')}</div>
+              </div>
+            ) : hasScansData ? (
+              <ResponsiveContainer width="100%" height={400}>
+                <ComposedChart data={chartView === 'monthly' ? monthlyScans : weeklyScans}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey={chartView === 'monthly' ? 'month' : 'day'} 
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'white', 
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      padding: '8px'
+                    }}
+                  />
+                  <Legend />
+                  <Bar 
+                    dataKey="scans" 
+                    fill="#9333ea" 
+                    name={t('dashboard.scans')}
+                    radius={[8, 8, 0, 0]}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="scans" 
+                    stroke="#f59e0b" 
+                    strokeWidth={3}
+                    name={t('dashboard.trend')}
+                    dot={{ fill: '#f59e0b', r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-64 flex flex-col items-center justify-center text-gray-500">
+                <Lock className="w-12 h-12 text-gray-300 mb-4" />
+                <p className="text-lg font-medium mb-2">{t('dashboard.noDataYet')}</p>
+                <p className="text-sm text-gray-400 text-center max-w-md">
+                  {t('dashboard.needsMoreDataDesc')}
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -407,160 +554,177 @@ function Dashboard() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 
           {/* Popular Dishes */}
-          <Card>
+          <Card className={!hasPopularDishesData ? 'opacity-60' : ''}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Utensils className="w-5 h-5 text-orange-600" />
+                {hasPopularDishesData ? (
+                  <Utensils className="w-5 h-5 text-orange-600" />
+                ) : (
+                  <Lock className="w-5 h-5 text-gray-400" />
+                )}
                 {t('dashboard.popularDishes')}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {popularDishes.map((dish) => (
-                  <div key={dish.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                        <span className="text-sm">{dish.icon}</span>
+              {hasPopularDishesData && popularDishes.length > 0 ? (
+                <div className="space-y-4">
+                  {popularDishes.map((dish) => (
+                    <div key={dish.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                          <span className="text-sm">{dish.icon}</span>
+                        </div>
+                        <span className="text-sm font-medium">{dish.name}</span>
                       </div>
-                      <span className="text-sm font-medium">{dish.name}</span>
+                      <Badge variant="secondary">{dish.views} {t('dashboard.views')}</Badge>
                     </div>
-                    <Badge variant="secondary">{dish.views} {t('dashboard.views')}</Badge>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                  <Lock className="w-8 h-8 text-gray-300 mb-3" />
+                  <p className="text-sm font-medium mb-1">{t('dashboard.noDataYet')}</p>
+                  <p className="text-xs text-gray-400 text-center">
+                    {t('dashboard.itemAnalyticsComingSoon')}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* Popular Menus */}
-          <Card>
+          <Card className={!hasMenuViews && menus.length > 0 ? 'opacity-60' : ''}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-purple-600" />
+                {hasMenuViews ? (
+                  <TrendingUp className="w-5 h-5 text-purple-600" />
+                ) : (
+                  <Lock className="w-5 h-5 text-gray-400" />
+                )}
                 {t('dashboard.popularMenus')}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {menus.slice(0, 4).map((menu, index) => (
-                  <div key={menu.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <span className="text-sm font-medium text-purple-600">{index + 1}</span>
+              {hasMenuViews && popularMenus.length > 0 ? (
+                <div className="space-y-4">
+                  {popularMenus.map((menu, index) => (
+                    <div key={menu.id} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                          <span className="text-sm font-medium text-purple-600">{index + 1}</span>
+                        </div>
+                        <span className="text-sm font-medium">{menu.name}</span>
                       </div>
-                      <span className="text-sm font-medium">{menu.name}</span>
+                      <div className="flex items-center gap-2">
+                        <Eye className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm text-gray-600">{menu.views || menu.view_count || 0}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Eye className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">{menu.views || 0}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : menus.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                  <p className="text-sm text-gray-400">{t('dashboard.noMenus')}</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                  <Lock className="w-8 h-8 text-gray-300 mb-3" />
+                  <p className="text-sm font-medium mb-1">{t('dashboard.noDataYet')}</p>
+                  <p className="text-xs text-gray-400 text-center">
+                    {t('dashboard.needsMoreDataDesc')}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* Popular Sections */}
-          <Card>
+          <Card className={!hasPopularSectionsData ? 'opacity-60' : ''}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-green-600" />
+                {hasPopularSectionsData ? (
+                  <BarChart3 className="w-5 h-5 text-green-600" />
+                ) : (
+                  <Lock className="w-5 h-5 text-gray-400" />
+                )}
                 {t('dashboard.popularSections')}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {popularSections.map((section) => (
-                  <div key={section.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                        {typeof section.icon === 'string' ? (
-                          <span className="text-sm">{section.icon}</span>
-                        ) : (
-                          <section.icon className="w-4 h-4 text-green-600" />
-                        )}
+              {hasPopularSectionsData && popularSections.length > 0 ? (
+                <div className="space-y-4">
+                  {popularSections.map((section) => (
+                    <div key={section.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                          {typeof section.icon === 'string' ? (
+                            <span className="text-sm">{section.icon}</span>
+                          ) : (
+                            <section.icon className="w-4 h-4 text-green-600" />
+                          )}
+                        </div>
+                        <span className="text-sm font-medium">{section.name}</span>
                       </div>
-                      <span className="text-sm font-medium">{section.name}</span>
+                      <span className="text-sm text-gray-600">{section.views} {t('dashboard.views')}</span>
                     </div>
-                    <span className="text-sm text-gray-600">{section.views} {t('dashboard.views')}</span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                  <Lock className="w-8 h-8 text-gray-300 mb-3" />
+                  <p className="text-sm font-medium mb-1">{t('dashboard.noDataYet')}</p>
+                  <p className="text-xs text-gray-400 text-center">
+                    {t('dashboard.itemAnalyticsComingSoon')}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* Popular Subsections */}
-          <Card>
+          <Card className={!hasPopularSubsectionsData ? 'opacity-60' : ''}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Pizza className="w-5 h-5 text-indigo-600" />
+                {hasPopularSubsectionsData ? (
+                  <Pizza className="w-5 h-5 text-indigo-600" />
+                ) : (
+                  <Lock className="w-5 h-5 text-gray-400" />
+                )}
                 {t('dashboard.popularSubsections')}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {popularSubsections.map((subsection, index) => (
-                  <div key={subsection.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
-                        <span className="text-sm font-medium text-indigo-600">{index + 1}</span>
+              {hasPopularSubsectionsData && popularSubsections.length > 0 ? (
+                <div className="space-y-4">
+                  {popularSubsections.map((subsection, index) => (
+                    <div key={subsection.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                          <span className="text-sm font-medium text-indigo-600">{index + 1}</span>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">{subsection.name}</div>
+                          <div className="text-xs text-gray-500">{subsection.section}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-sm font-medium">{subsection.name}</div>
-                        <div className="text-xs text-gray-500">{subsection.section}</div>
-                      </div>
+                      <span className="text-sm text-gray-600">{subsection.views} {t('dashboard.views')}</span>
                     </div>
-                    <span className="text-sm text-gray-600">{subsection.views} {t('dashboard.views')}</span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                  <Lock className="w-8 h-8 text-gray-300 mb-3" />
+                  <p className="text-sm font-medium mb-1">{t('dashboard.noDataYet')}</p>
+                  <p className="text-xs text-gray-400 text-center">
+                    {t('dashboard.itemAnalyticsComingSoon')}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
         </div>
 
-        {/* Monthly Views Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-              {t('dashboard.monthlyTrend')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-6 gap-4">
-              {monthlyViews.map((month) => (
-                <div key={month.month} className="text-center">
-                  <div className="mb-2">
-                    <div
-                      className="bg-blue-200 rounded-t-sm mx-auto transition-all duration-500"
-                      style={{
-                        height: `${Math.max((month.views / Math.max(...monthlyViews.map((m) => m.views))) * 120, 20)}px`,
-                        width: '40px',
-                      }}
-                    >
-                      <div
-                        className="bg-blue-600 rounded-t-sm w-full transition-all duration-1000"
-                        style={{
-                          height: `${Math.max((month.views / Math.max(...monthlyViews.map((m) => m.views))) * 100, 16)}px`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                  <div className="text-xs text-gray-600 font-medium">{month.month}</div>
-                  <div className="text-xs text-gray-500">{month.views.toLocaleString()}</div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Analytics Detail Modal */}
-        <AnalyticsDetail
-          isOpen={analyticsDetailOpen}
-          onClose={() => setAnalyticsDetailOpen(false)}
-          type={analyticsDetailType}
-          menuId={selectedMenu}
-        />
 
         {/* AI Report Modal */}
         <AIReport

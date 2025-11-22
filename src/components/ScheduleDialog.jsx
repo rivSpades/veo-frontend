@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Label } from './ui/Label';
@@ -17,14 +17,32 @@ const dayOptions = [
 ];
 
 export function ScheduleDialog({ menu, isOpen, onClose, onSave }) {
-  const [schedule, setSchedule] = useState(
-    menu.schedule || {
+  // Initialize schedule from menu or default
+  const getInitialSchedule = () => {
+    if (menu?.schedule && typeof menu.schedule === 'object' && Object.keys(menu.schedule).length > 0) {
+      return {
+        enabled: menu.schedule.enabled || false,
+        startTime: menu.schedule.startTime || '09:00',
+        endTime: menu.schedule.endTime || '17:00',
+        days: Array.isArray(menu.schedule.days) ? menu.schedule.days : ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+      };
+    }
+    return {
       enabled: false,
       startTime: '09:00',
       endTime: '17:00',
       days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+    };
+  };
+
+  const [schedule, setSchedule] = useState(getInitialSchedule());
+
+  // Update schedule when menu changes
+  useEffect(() => {
+    if (isOpen && menu) {
+      setSchedule(getInitialSchedule());
     }
-  );
+  }, [isOpen, menu]);
 
   const handleSave = () => {
     onSave(schedule);
