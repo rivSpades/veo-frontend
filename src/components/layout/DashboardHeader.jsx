@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/Avatar';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-import { Bell, Settings, HelpCircle, X, CheckCheck } from 'lucide-react';
+import { Bell, Settings, HelpCircle, X, CheckCheck, Menu } from 'lucide-react';
+import { useSidebar } from '../ui/Sidebar';
 
 /**
  * DashboardHeader - Reusable header component for dashboard pages
@@ -69,6 +70,7 @@ export function DashboardHeader({
   user = { name: 'Restaurant Bella Vista', initials: 'BV', avatar: null },
 }) {
   const navigate = useNavigate();
+  const { toggleMobile } = useSidebar();
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
   const [notifications, setNotifications] = useState(sampleNotifications);
 
@@ -97,7 +99,17 @@ export function DashboardHeader({
   };
 
   return (
-    <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between gap-4 border-b bg-white px-6">
+    <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between gap-4 border-b bg-white px-4 md:px-6">
+      {/* Mobile Menu Button */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-gray-600 md:hidden"
+        onClick={toggleMobile}
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
+
       {/* Left Section - Page Title */}
       <div className="flex-1">
         {title && (
@@ -244,7 +256,7 @@ export function DashboardHeader({
 
         {/* User Avatar */}
         <Avatar 
-          className="h-8 w-8 cursor-pointer hover:ring-2 hover:ring-purple-300 transition-all" 
+          className="h-8 w-8 cursor-pointer focus:outline-none focus:ring-0 transition-all" 
           onClick={() => navigate('/dashboard/settings')}
         >
           {user.avatar ? (

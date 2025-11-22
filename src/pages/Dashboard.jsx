@@ -6,6 +6,8 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Select } from '../components/ui/Select';
 import { useTranslation } from '../store/LanguageContext';
+import { AnalyticsDetail } from '../components/AnalyticsDetail';
+import { AIReport } from '../components/AIReport';
 import {
   Eye,
   Users,
@@ -20,8 +22,10 @@ import {
   Sparkles,
   QrCode,
   Clock,
+  ArrowRight,
 } from 'lucide-react';
 import { getMenus } from '../utils/menuStorage';
+import { instancesAPI, menusAPI } from '../data/api';
 
 /**
  * Dashboard Page - Analytics dashboard with KPIs and insights
@@ -29,24 +33,104 @@ import { getMenus } from '../utils/menuStorage';
 function Dashboard() {
   const { menus: initialMenus } = useLoaderData();
   const [menus, setMenus] = useState(initialMenus);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [selectedMenu, setSelectedMenu] = useState('all');
+  const [restaurantName, setRestaurantName] = useState('Restaurant');
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [todayViews, setTodayViews] = useState(0);
+  const [todayScans, setTodayScans] = useState(0);
+  const [analyticsDetailOpen, setAnalyticsDetailOpen] = useState(false);
+  const [analyticsDetailType, setAnalyticsDetailType] = useState('views');
+  const [aiReportOpen, setAIReportOpen] = useState(false);
   const navigate = useNavigate();
   const { t } = useTranslation();
 
   useEffect(() => {
-    const loadMenus = () => {
-      const allMenus = getMenus();
-      setMenus(allMenus);
+    const loadMenus = async () => {
+      try {
+        // Try to load from API first
+        const response = await menusAPI.getMenus();
+        if (response.success) {
+          const menusData = Array.isArray(response.data) ? response.data : (response.data?.results || []);
+          setMenus(menusData);
+        } else {
+          // Fallback to localStorage
+          const allMenus = getMenus();
+          setMenus(allMenus);
+        }
+      } catch (error) {
+        console.error('Error loading menus:', error);
+        // Fallback to localStorage
+        const allMenus = getMenus();
+        setMenus(allMenus);
+      }
       setLoading(false);
     };
 
     loadMenus();
 
     // Listen for storage changes
-    const handleStorageChange = () => loadMenus();
+    const handleStorageChange = () => {
+      const allMenus = getMenus();
+      setMenus(allMenus);
+    };
     window.addEventListener('veomenu:storage', handleStorageChange);
     return () => window.removeEventListener('veomenu:storage', handleStorageChange);
+  }, []);
+
+  useEffect(() => {
+    const loadDashboardStats = async () => {
+      setStatsLoading(true);
+      try {
+        const response = await menusAPI.getDashboardStats(7);
+        if (response.success) {
+          setDashboardStats(response.data);
+        }
+
+        // Load today's views and scans
+        const todayResponse = await menusAPI.getDetailedAnalytics(selectedMenu, 1, 'views');
+        if (todayResponse.success && todayResponse.data) {
+          const today = new Date().toISOString().split('T')[0];
+          const todayCount = todayResponse.data.views_by_day?.[today] || 0;
+          setTodayViews(todayCount);
+          setTodayScans(todayCount); // Scans are the same as views (QR code scans create views)
+        }
+      } catch (error) {
+        console.error('Error loading dashboard stats:', error);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    if (menus.length > 0) {
+      loadDashboardStats();
+    } else {
+      setStatsLoading(false);
+    }
+  }, [menus, selectedMenu]);
+
+  const handleCardClick = (type) => {
+    setAnalyticsDetailType(type);
+    setAnalyticsDetailOpen(true);
+  };
+
+  useEffect(() => {
+    const loadRestaurantName = async () => {
+      try {
+        const instanceId = localStorage.getItem('instance_id');
+        if (instanceId) {
+          const response = await instancesAPI.getInstance(instanceId);
+          if (response.success && response.data) {
+            setRestaurantName(response.data.name || 'Restaurant');
+          }
+        }
+      } catch (error) {
+        console.error('Error loading restaurant name:', error);
+      }
+    };
+
+    loadRestaurantName();
   }, []);
 
   const handleCreateMenu = () => {
@@ -107,8 +191,8 @@ function Dashboard() {
   if (loading) {
     return (
       <DashboardLayout
-        title="Welcome back, Restaurant Bella Vista"
-        subtitle="Here's what's happening with your menus today"
+        title={t('dashboard.welcomeBack').replace('{name}', restaurantName)}
+        subtitle={t('dashboard.welcomeBackSubtitle')}
       >
         <div className="p-6">
           <div className="animate-pulse space-y-6">
@@ -128,21 +212,29 @@ function Dashboard() {
     );
   }
 
-  const totalViews = menus.reduce((sum, menu) => sum + (menu.views || 0), 0);
-  const previousPeriodViews = Math.floor(totalViews * 0.88); // Mock previous period data
+  // Use real stats if available, otherwise use fallback data
+  const totalViews = dashboardStats?.totalViews || menus.reduce((sum, menu) => sum + (menu.views || 0), 0);
+  const previousPeriodViews = Math.floor(totalViews * 0.88); // Calculate from 88% of current (mock previous period)
   const viewsGrowth = totalViews > 0 ? Math.round(((totalViews - previousPeriodViews) / previousPeriodViews) * 100) : 0;
-  const totalLanguages = 6;
-  const activeLanguages = 4;
+  
+  const uniqueLanguages = dashboardStats?.languages || [];
+  const totalLanguages = uniqueLanguages.length || menus.reduce((acc, menu) => {
+    if (menu.available_languages && Array.isArray(menu.available_languages)) {
+      menu.available_languages.forEach(lang => acc.add(lang));
+    }
+    return acc;
+  }, new Set()).size || 0;
+  const activeLanguages = totalLanguages;
 
-  // Mock data for analytics
-  const weeklyScans = [
-    { day: 'Mon', scans: 45 },
-    { day: 'Tue', scans: 52 },
-    { day: 'Wed', scans: 38 },
-    { day: 'Thu', scans: 61 },
-    { day: 'Fri', scans: 73 },
-    { day: 'Sat', scans: 89 },
-    { day: 'Sun', scans: 67 },
+  // Use real weekly scans if available, otherwise use fallback
+  const weeklyScans = dashboardStats?.weeklyScans || [
+    { day: 'Mon', scans: 0 },
+    { day: 'Tue', scans: 0 },
+    { day: 'Wed', scans: 0 },
+    { day: 'Thu', scans: 0 },
+    { day: 'Fri', scans: 0 },
+    { day: 'Sat', scans: 0 },
+    { day: 'Sun', scans: 0 },
   ];
 
   const monthlyViews = [
@@ -154,11 +246,27 @@ function Dashboard() {
     { month: 'Jun', views: 1950 },
   ];
 
-  const popularLanguages = [
-    { name: 'Portuguese', code: 'PT', percentage: 45, flag: '🇵🇹' },
-    { name: 'English', code: 'EN', percentage: 35, flag: '🇺🇸' },
-    { name: 'Spanish', code: 'ES', percentage: 20, flag: '🇪🇸' },
-  ];
+  // Use real popular languages if available, otherwise use fallback
+  const languageFlags = { pt: '🇵🇹', en: '🇺🇸', es: '🇪🇸', fr: '🇫🇷', de: '🇩🇪', it: '🇮🇹' };
+  const languageNames = {
+    pt: t('dashboard.language.portuguese'),
+    en: t('dashboard.language.english'),
+    es: t('dashboard.language.spanish'),
+    fr: t('dashboard.language.french'),
+    de: t('dashboard.language.german'),
+    it: t('dashboard.language.italian'),
+  };
+
+  const popularLanguages = dashboardStats?.popularLanguages?.map(lang => ({
+    name: languageNames[lang.code.toLowerCase()] || lang.code,
+    code: lang.code,
+    percentage: lang.percentage,
+    flag: languageFlags[lang.code.toLowerCase()] || '🌐',
+  })) || (totalViews > 0 ? [] : [
+    { name: t('dashboard.language.portuguese'), code: 'PT', percentage: 0, flag: '🇵🇹' },
+    { name: t('dashboard.language.english'), code: 'EN', percentage: 0, flag: '🇺🇸' },
+    { name: t('dashboard.language.spanish'), code: 'ES', percentage: 0, flag: '🇪🇸' },
+  ]);
 
   const popularDishes = [
     { name: 'Bacalhau à Brás', views: 124, icon: '🐟' },
@@ -168,17 +276,17 @@ function Dashboard() {
   ];
 
   const popularSections = [
-    { name: 'Main Courses', views: 456, icon: Utensils },
-    { name: 'Appetizers', views: 342, icon: Pizza },
-    { name: 'Wines & Beverages', views: 298, icon: Wine },
-    { name: 'Desserts', views: 187, icon: '🍰' },
+    { name: t('dashboard.section.mainCourses'), views: 456, icon: Utensils },
+    { name: t('dashboard.section.appetizers'), views: 342, icon: Pizza },
+    { name: t('dashboard.section.winesBeverages'), views: 298, icon: Wine },
+    { name: t('dashboard.section.desserts'), views: 187, icon: '🍰' },
   ];
 
   const popularSubsections = [
-    { name: 'Grilled Specialties', views: 234, section: 'Main Courses' },
-    { name: 'Cold Appetizers', views: 198, section: 'Appetizers' },
-    { name: 'House Wines', views: 156, section: 'Wines & Beverages' },
-    { name: 'Traditional Desserts', views: 134, section: 'Desserts' },
+    { name: t('dashboard.subsection.grilledSpecialties'), views: 234, section: t('dashboard.section.mainCourses') },
+    { name: t('dashboard.subsection.coldAppetizers'), views: 198, section: t('dashboard.section.appetizers') },
+    { name: t('dashboard.subsection.houseWines'), views: 156, section: t('dashboard.section.winesBeverages') },
+    { name: t('dashboard.subsection.traditionalDesserts'), views: 134, section: t('dashboard.section.desserts') },
   ];
 
   // Filter data based on selected menu
@@ -187,31 +295,37 @@ function Dashboard() {
 
   return (
     <DashboardLayout
-      title={t('dashboard.welcomeBack', { name: 'Restaurant Bella Vista' })}
+      title={t('dashboard.welcomeBack').replace('{name}', restaurantName)}
       subtitle={t('dashboard.welcomeBackSubtitle')}
       action={
-        <Button onClick={handleCreateMenu} className="bg-purple-600 hover:bg-purple-700">
-          <Plus className="w-4 h-4 mr-2" />
-          {t('dashboard.newMenu')}
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setAIReportOpen(true)} variant="outline" className="border-purple-300 text-purple-700 hover:bg-purple-50">
+            <Sparkles className="w-4 h-4 mr-2" />
+            {t('dashboard.generateAIReport')}
+          </Button>
+          <Button onClick={handleCreateMenu} className="bg-purple-600 hover:bg-purple-700">
+            <Plus className="w-4 h-4 mr-2" />
+            {t('dashboard.newMenu')}
+          </Button>
+        </div>
       }
     >
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
         {/* Menu Filter */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">{t('dashboard.analytics')}</h3>
             <p className="text-sm text-gray-500">{t('dashboard.analyticsDesc')}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <label htmlFor="menuFilter" className="text-sm font-medium text-gray-700">
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <label htmlFor="menuFilter" className="text-sm font-medium text-gray-700 whitespace-nowrap">
               {t('dashboard.filterMenu')}
             </label>
             <Select
               id="menuFilter"
               value={selectedMenu}
               onChange={(e) => setSelectedMenu(e.target.value)}
-              className="w-64"
+              className="flex-1 md:w-64"
             >
               <option value="all">{t('dashboard.allMenus')}</option>
               {menus.map((menu) => (
@@ -223,128 +337,74 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* KPI Cards */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="bg-blue-50 border-blue-200">
+        {/* KPI Cards - Simplified to 2 main metrics */}
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card 
+            className="bg-blue-50 border-blue-200 cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => handleCardClick('views')}
+          >
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="p-2 bg-blue-100 rounded-lg">
                   <Eye className="w-6 h-6 text-blue-600" />
                 </div>
-                <div
-                  className={`flex items-center text-sm font-medium ${
-                    viewsGrowth >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}
-                >
-                  {viewsGrowth >= 0 ? (
-                    <TrendingUp className="w-4 h-4 mr-1" />
-                  ) : (
-                    <TrendingDown className="w-4 h-4 mr-1" />
-                  )}
-                  {Math.abs(viewsGrowth)}%
-                </div>
+                <ArrowRight className="w-5 h-5 text-gray-400" />
               </div>
               <div className="mt-4">
-                <div className="text-2xl font-bold text-gray-900">{filteredTotalViews.toLocaleString()}</div>
-                <div className="text-sm text-gray-600">{t('dashboard.totalViews')}</div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {selectedMenu === 'all' ? t('dashboard.allMenusCombined') : t('dashboard.selectedOnly')}
+                <div className="text-3xl font-bold text-gray-900">
+                  {statsLoading ? '...' : todayViews.toLocaleString()}
+                </div>
+                <div className="text-sm text-gray-600 mt-1">{t('dashboard.viewsToday')}</div>
+                <div className="text-xs text-blue-600 mt-2 flex items-center gap-1">
+                  {t('dashboard.clickForDetails')}
+                  <ArrowRight className="w-3 h-3" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-green-50 border-green-200">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <Globe className="w-6 h-6 text-green-600" />
-                </div>
-                <div className="text-blue-600 text-sm font-medium">{t('dashboard.languagesActive', { count: activeLanguages })}</div>
-              </div>
-              <div className="mt-4">
-                <div className="text-2xl font-bold text-gray-900">{totalLanguages}</div>
-                <div className="text-sm text-gray-600">{t('dashboard.languages')}</div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-purple-50 border-purple-200">
+          <Card 
+            className="bg-purple-50 border-purple-200 cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => handleCardClick('scans')}
+          >
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="p-2 bg-purple-100 rounded-lg">
-                  <BarChart3 className="w-6 h-6 text-purple-600" />
+                  <QrCode className="w-6 h-6 text-purple-600" />
                 </div>
-                <div className="flex items-center text-green-600 text-sm font-medium">
-                  <TrendingUp className="w-4 h-4 mr-1" />
-                  15%
-                </div>
+                <ArrowRight className="w-5 h-5 text-gray-400" />
               </div>
               <div className="mt-4">
-                <div className="text-2xl font-bold text-gray-900">
-                  {weeklyScans.reduce((sum, day) => sum + day.scans, 0)}
+                <div className="text-3xl font-bold text-gray-900">
+                  {statsLoading ? '...' : todayScans.toLocaleString()}
                 </div>
-                <div className="text-sm text-gray-600">{t('dashboard.weeklyScans')}</div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-orange-50 border-orange-200">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <Clock className="w-6 h-6 text-orange-600" />
-                </div>
-                <Badge className="bg-orange-200 text-orange-700 text-xs">{t('dashboard.today')}</Badge>
-              </div>
-              <div className="mt-4">
-                <div className="text-2xl font-bold text-gray-900">
-                  {weeklyScans[weeklyScans.length - 1]?.scans || 0}
-                </div>
-                <div className="text-sm text-gray-600">{t('dashboard.scansToday')}</div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {t('dashboard.avgPerDay', { avg: Math.round(weeklyScans.reduce((sum, d) => sum + d.scans, 0) / 7) })}
+                <div className="text-sm text-gray-600 mt-1">{t('dashboard.scansToday')}</div>
+                <div className="text-xs text-purple-600 mt-2 flex items-center gap-1">
+                  {t('dashboard.clickForDetails')}
+                  <ArrowRight className="w-3 h-3" />
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Analytics Charts and Lists */}
+        {/* Performance Evolution Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-blue-600" />
+              {t('dashboard.performanceEvolution')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-12 text-gray-500">
+              {t('dashboard.clickCardsAbove')}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Analytics Charts and Lists - Keep popular items */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {/* Popular Languages */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Globe className="w-5 h-5 text-blue-600" />
-                {t('dashboard.popularLanguages')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {popularLanguages.map((lang) => (
-                  <div key={lang.code} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg">{lang.flag}</span>
-                      <div>
-                        <div className="font-medium text-sm">{lang.name}</div>
-                        <div className="text-xs text-gray-500">{lang.code}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-16 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full"
-                          style={{ width: `${lang.percentage}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-sm font-medium w-8">{lang.percentage}%</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Popular Dishes */}
           <Card>
@@ -364,7 +424,7 @@ function Dashboard() {
                       </div>
                       <span className="text-sm font-medium">{dish.name}</span>
                     </div>
-                    <Badge variant="secondary">{dish.views} views</Badge>
+                    <Badge variant="secondary">{dish.views} {t('dashboard.views')}</Badge>
                   </div>
                 ))}
               </div>
@@ -421,7 +481,7 @@ function Dashboard() {
                       </div>
                       <span className="text-sm font-medium">{section.name}</span>
                     </div>
-                    <span className="text-sm text-gray-600">{section.views} views</span>
+                    <span className="text-sm text-gray-600">{section.views} {t('dashboard.views')}</span>
                   </div>
                 ))}
               </div>
@@ -449,42 +509,13 @@ function Dashboard() {
                         <div className="text-xs text-gray-500">{subsection.section}</div>
                       </div>
                     </div>
-                    <span className="text-sm text-gray-600">{subsection.views} views</span>
+                    <span className="text-sm text-gray-600">{subsection.views} {t('dashboard.views')}</span>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
 
-          {/* Weekly QR Scans */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-purple-600" />
-                {t('dashboard.scansByDay')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {weeklyScans.map((day, index) => (
-                  <div key={day.day} className="flex items-center gap-4">
-                    <div className="w-12 text-sm font-medium text-gray-600">{day.day}</div>
-                    <div className="flex-1 bg-gray-100 rounded-full h-6 relative overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-purple-500 to-purple-600 rounded-full transition-all duration-1000 ease-out flex items-center justify-end pr-3"
-                        style={{
-                          width: `${(day.scans / Math.max(...weeklyScans.map((d) => d.scans))) * 100}%`,
-                          animationDelay: `${index * 100}ms`,
-                        }}
-                      >
-                        <span className="text-white text-xs font-medium">{day.scans}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Monthly Views Chart */}
@@ -522,6 +553,21 @@ function Dashboard() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Analytics Detail Modal */}
+        <AnalyticsDetail
+          isOpen={analyticsDetailOpen}
+          onClose={() => setAnalyticsDetailOpen(false)}
+          type={analyticsDetailType}
+          menuId={selectedMenu}
+        />
+
+        {/* AI Report Modal */}
+        <AIReport
+          isOpen={aiReportOpen}
+          onClose={() => setAIReportOpen(false)}
+          menuId={selectedMenu}
+        />
       </div>
     </DashboardLayout>
   );

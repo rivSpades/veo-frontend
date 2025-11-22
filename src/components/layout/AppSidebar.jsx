@@ -2,6 +2,8 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, LogOut, QrCode as QrCodeIcon, Settings, User, Utensils, HelpCircle, FileText } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
+import { useTranslation } from '../../store/LanguageContext';
+import { useSidebar } from '../ui/Sidebar';
 import {
   Sidebar,
   SidebarContent,
@@ -15,25 +17,25 @@ import {
   SidebarRail,
 } from '../ui/Sidebar';
 
-// Navigation data
+// Navigation data - will be translated in component
 const mainNavigation = [
   {
-    title: 'Dashboard',
+    titleKey: 'sidebar.dashboard',
     url: '/dashboard',
     icon: Home,
   },
   {
-    title: 'Menus',
+    titleKey: 'sidebar.menus',
     url: '/dashboard/menus',
     icon: Utensils,
   },
   {
-    title: 'QR Codes',
+    titleKey: 'sidebar.qrCodes',
     url: '/dashboard/qr-codes',
     icon: QrCodeIcon,
   },
   {
-    title: 'Settings',
+    titleKey: 'sidebar.settings',
     url: '/dashboard/settings',
     icon: Settings,
   },
@@ -41,7 +43,7 @@ const mainNavigation = [
 
 const supportNavigation = [
   {
-    title: 'Support',
+    titleKey: 'sidebar.support',
     url: '/dashboard/help',
     icon: HelpCircle,
   },
@@ -51,6 +53,8 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { t } = useTranslation();
+  const { toggleMobile } = useSidebar();
   const pathname = location.pathname;
 
   const handleLogout = async () => {
@@ -58,8 +62,8 @@ export function AppSidebar() {
     try {
       console.log('Calling logout function...');
       await logout();
-      console.log('Logout completed, navigating to login...');
-      navigate('/auth/login');
+      console.log('Logout completed, navigating to landing page...');
+      navigate('/');
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -89,7 +93,7 @@ export function AppSidebar() {
         {/* Main Navigation */}
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-medium text-gray-400 uppercase tracking-wider px-3 py-2">
-            MAIN
+            {t('sidebar.group.main')}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -97,16 +101,16 @@ export function AppSidebar() {
                 const isActive = pathname === item.url || (item.url !== '/dashboard' && pathname.startsWith(item.url));
 
                 return (
-                  <SidebarMenuItem key={item.title}>
+                  <SidebarMenuItem key={item.titleKey}>
                     <SidebarMenuButton
                       asChild
                       isActive={isActive}
                       className={isActive ? 'bg-purple-50 text-purple-600 border-r-2 border-purple-600' : ''}
                     >
-                      <Link to={item.url} className="flex items-center gap-3 px-3 py-2">
+                      <Link to={item.url} onClick={toggleMobile} className="flex items-center gap-3 px-3 py-2">
                         <item.icon className={`h-4 w-4 ${isActive ? 'text-purple-600' : 'text-gray-500'}`} />
                         <span className={isActive ? 'font-medium text-purple-600' : 'text-gray-700'}>
-                          {item.title}
+                          {t(item.titleKey)}
                         </span>
                       </Link>
                     </SidebarMenuButton>
@@ -120,7 +124,7 @@ export function AppSidebar() {
         {/* Support Navigation */}
         <SidebarGroup className="mt-8">
           <SidebarGroupLabel className="text-xs font-medium text-gray-400 uppercase tracking-wider px-3 py-2">
-            SUPPORT
+            {t('sidebar.group.support')}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -128,16 +132,16 @@ export function AppSidebar() {
                 const isActive = pathname === item.url || pathname.startsWith(item.url);
 
                 return (
-                  <SidebarMenuItem key={item.title}>
+                  <SidebarMenuItem key={item.titleKey}>
                     <SidebarMenuButton
                       asChild
                       isActive={isActive}
                       className={isActive ? 'bg-purple-50 text-purple-600 border-r-2 border-purple-600' : ''}
                     >
-                      <Link to={item.url} className="flex items-center gap-3 px-3 py-2">
+                      <Link to={item.url} onClick={toggleMobile} className="flex items-center gap-3 px-3 py-2">
                         <item.icon className={`h-4 w-4 ${isActive ? 'text-purple-600' : 'text-gray-500'}`} />
                         <span className={isActive ? 'font-medium text-purple-600' : 'text-gray-700'}>
-                          {item.title}
+                          {t(item.titleKey)}
                         </span>
                       </Link>
                     </SidebarMenuButton>
@@ -151,7 +155,7 @@ export function AppSidebar() {
         {/* Account Navigation */}
         <SidebarGroup className="mt-8">
           <SidebarGroupLabel className="text-xs font-medium text-gray-400 uppercase tracking-wider px-3 py-2">
-            ACCOUNT
+            {t('sidebar.group.account')}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -159,7 +163,7 @@ export function AppSidebar() {
                 <SidebarMenuButton onClick={handleLogout}>
                   <div className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-100 rounded-md transition-colors">
                     <LogOut className="h-4 w-4 text-gray-500" />
-                    <span className="text-gray-700">Logout</span>
+                    <span className="text-gray-700">{t('sidebar.logout')}</span>
                   </div>
                 </SidebarMenuButton>
               </SidebarMenuItem>

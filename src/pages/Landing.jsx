@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -17,6 +17,9 @@ import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { DemoWidget } from '../components/DemoWidget';
+import { getDemoMenu } from '../data/menus';
+import { instancesAPI } from '../data/api';
+import Footer from '../components/Footer';
 
 const features = [
   { icon: QrCode, titleKey: 'feature.qr.title', descKey: 'feature.qr.desc' },
@@ -34,6 +37,8 @@ function Landing() {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const [demoMenu, setDemoMenu] = useState(null);
+  const [demoRestaurant, setDemoRestaurant] = useState(null);
 
   // Redirect to dashboard if user is already logged in
   useEffect(() => {
@@ -41,6 +46,38 @@ function Landing() {
       navigate('/dashboard');
     }
   }, [isAuthenticated, navigate]);
+
+  // Load demo menu and restaurant from backend
+  useEffect(() => {
+    const loadDemoData = async () => {
+      try {
+        // Use fetch directly to avoid automatic redirect on 401
+        const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
+        
+        const [menuResponse, instanceResponse] = await Promise.allSettled([
+          fetch(`${API_BASE_URL}/menus/demo/`, { method: 'GET' }),
+          fetch(`${API_BASE_URL}/instances/demo/`, { method: 'GET' }),
+        ]);
+
+        // Handle menu response
+        if (menuResponse.status === 'fulfilled' && menuResponse.value.ok) {
+          const menuData = await menuResponse.value.json();
+          setDemoMenu(menuData);
+        }
+
+        // Handle instance response
+        if (instanceResponse.status === 'fulfilled' && instanceResponse.value.ok) {
+          const instanceData = await instanceResponse.value.json();
+          setDemoRestaurant(instanceData);
+        }
+      } catch (error) {
+        console.error('Error loading demo data:', error);
+        // Fallback to default demo data in DemoWidget if backend fails
+      }
+    };
+
+    loadDemoData();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-600 to-purple-700">
@@ -62,7 +99,7 @@ function Landing() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-sm md:text-base text-white hover:bg-white/10"
+                className="text-sm md:text-base text-gray-900 hover:bg-gray-100 bg-white/90"
               >
                 {t('auth.login')}
               </Button>
@@ -107,15 +144,6 @@ function Landing() {
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 </Link>
-                <Link to="/demo">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="w-full sm:w-auto text-base md:text-lg px-8 py-4 border-white/30 text-white hover:bg-white/10 font-semibold bg-transparent"
-                  >
-                    {t('landing.cta.tryDemo')}
-                  </Button>
-                </Link>
               </div>
               <p className="text-sm text-white/70 mt-4">
                 {t('landing.trial')}
@@ -137,12 +165,12 @@ function Landing() {
 
                   {/* Screen with full demo functionality */}
                   <div className="bg-white rounded-[28px] overflow-hidden w-full h-full border shadow-inner scrollbar-hide">
-                    <DemoWidget />
+                    <DemoWidget restaurant={demoRestaurant} menu={demoMenu} />
                   </div>
                 </div>
 
                 {/* QR Code for mobile scanning */}
-                <div className="hidden lg:block absolute -right-20 top-1/2 -translate-y-1/2 bg-white p-3 rounded-lg shadow-lg">
+                <div className="hidden xl:block absolute -right-24 top-1/2 -translate-y-1/2 bg-white p-3 rounded-lg shadow-lg z-0">
                   <div className="text-center mb-2">
                     <p className="text-xs font-medium text-gray-700">{t('landing.scanToTry')}</p>
                     <p className="text-xs text-gray-500">{t('landing.scanOnMobile')}</p>
@@ -246,106 +274,7 @@ function Landing() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-12 px-4 border-t border-white/10">
-        <div className="container mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            {/* Brand */}
-            <div className="md:col-span-1">
-              <div className="flex items-center space-x-2 mb-4">
-                <QrCode className="h-6 w-6 text-white" />
-                <span className="text-xl font-bold text-white">{t('app.name')}</span>
-              </div>
-              <p className="text-white/70 text-sm">{t('landing.footer.tagline')}</p>
-            </div>
-
-            {/* Product */}
-            <div>
-              <h3 className="text-white font-semibold mb-4">{t('landing.footer.product')}</h3>
-              <ul className="space-y-2 text-sm text-white/70">
-                <li>
-                  <Link to="/features" className="hover:text-white transition-colors">
-                    {t('landing.footer.features')}
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/pricing" className="hover:text-white transition-colors">
-                    {t('landing.footer.pricing')}
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/templates" className="hover:text-white transition-colors">
-                    {t('landing.footer.templates')}
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/integrations" className="hover:text-white transition-colors">
-                    {t('landing.footer.integrations')}
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            {/* Company */}
-            <div>
-              <h3 className="text-white font-semibold mb-4">{t('landing.footer.company')}</h3>
-              <ul className="space-y-2 text-sm text-white/70">
-                <li>
-                  <Link to="/about" className="hover:text-white transition-colors">
-                    {t('landing.footer.about')}
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/blog" className="hover:text-white transition-colors">
-                    {t('landing.footer.blog')}
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/careers" className="hover:text-white transition-colors">
-                    {t('landing.footer.careers')}
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/contact" className="hover:text-white transition-colors">
-                    {t('landing.footer.contact')}
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            {/* Support */}
-            <div>
-              <h3 className="text-white font-semibold mb-4">{t('landing.footer.support')}</h3>
-              <ul className="space-y-2 text-sm text-white/70">
-                <li>
-                  <Link to="/help" className="hover:text-white transition-colors">
-                    {t('landing.footer.helpCenter')}
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/docs" className="hover:text-white transition-colors">
-                    {t('landing.footer.documentation')}
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/privacy" className="hover:text-white transition-colors">
-                    {t('landing.footer.privacy')}
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/terms" className="hover:text-white transition-colors">
-                    {t('landing.footer.terms')}
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t border-white/10 mt-8 pt-8 text-center">
-            <p className="text-sm text-white/70">{t('landing.footer.copyright')}</p>
-          </div>
-        </div>
-      </footer>
+     {/* <Footer /> */}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
 import { Separator } from '../components/ui/Separator';
-import { QrCode, Mail, ArrowLeft, Lock, Eye, EyeOff } from 'lucide-react';
+import { QrCode, ArrowLeft, Lock, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from '../store/LanguageContext';
 import { useAuth } from '../store/AuthContext';
 
@@ -14,14 +14,12 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [authMode, setAuthMode] = useState('password'); // 'password' or 'magic-link'
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
-  const { login, requestMagicLink, isLoading, error: authError, clearError } = useAuth();
+  const { login, isLoading, error: authError, clearError } = useAuth();
 
   // Show success message from registration
   useEffect(() => {
@@ -57,29 +55,6 @@ export default function Login() {
     }
   };
 
-  const handleMagicLink = async (e) => {
-    e?.preventDefault();
-    setError('');
-    setSuccessMessage('');
-    clearError();
-
-    if (!email) {
-      setError(t('auth.login.magicLinkAlert'));
-      return;
-    }
-
-    try {
-      const result = await requestMagicLink(email);
-
-      if (result.success) {
-        setMagicLinkSent(true);
-      } else {
-        setError(result.error?.message || t('auth.login.magicLinkError'));
-      }
-    } catch (err) {
-      setError(t('auth.login.magicLinkError'));
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-600 to-purple-700 flex items-center justify-center p-4">
@@ -121,28 +96,7 @@ export default function Login() {
               </div>
             )}
 
-            {magicLinkSent ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="text-center py-6 md:py-8"
-              >
-                <Mail className="h-12 w-12 md:h-16 md:w-16 text-white mx-auto mb-3 md:mb-4" />
-                <h3 className="text-base md:text-lg font-semibold mb-2 text-white">{t('auth.login.magicLinkSent')}</h3>
-                <p className="text-sm md:text-base text-white/80 mb-4 px-2">
-                  {t('auth.login.magicLinkSentDesc')} <strong>{email}</strong>
-                </p>
-                <Button
-                  variant="outline"
-                  onClick={() => setMagicLinkSent(false)}
-                  className="w-full bg-white/10 border-white/30 text-white hover:bg-white/20"
-                >
-                  {t('auth.login.backToLogin')}
-                </Button>
-              </motion.div>
-            ) : (
-              <>
-                <form onSubmit={authMode === 'password' ? handlePasswordLogin : handleMagicLink} className="space-y-4">
+            <form onSubmit={handlePasswordLogin} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-sm md:text-base text-white">
                       {t('auth.login.email')}
@@ -158,77 +112,41 @@ export default function Login() {
                     />
                   </div>
 
-                  {authMode === 'password' && (
-                    <div className="space-y-2">
-                      <Label htmlFor="password" className="text-sm md:text-base text-white">
-                        {t('auth.login.password')}
-                      </Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-3 h-4 w-4 text-white/60" />
-                        <Input
-                          id="password"
-                          type={showPassword ? 'text' : 'password'}
-                          placeholder={t('auth.login.passwordPlaceholder')}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          required
-                          className="h-10 md:h-11 pl-10 pr-10 bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-white/50"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-0 top-0 h-full px-3 hover:bg-transparent text-white/60 hover:text-white"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                      </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-sm md:text-base text-white">
+                      {t('auth.login.password')}
+                    </Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-white/60" />
+                      <Input
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder={t('auth.login.passwordPlaceholder')}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        className="h-10 md:h-11 pl-10 pr-10 bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-white/50"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent text-white/60 hover:text-white"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
                     </div>
-                  )}
+                  </div>
 
                   <Button
                     type="submit"
                     className="w-full h-10 md:h-11 bg-white text-purple-600 hover:bg-white/90 font-semibold"
                     disabled={isLoading}
                   >
-                    {authMode === 'password' ? (
-                      <>{isLoading ? t('auth.login.submitting') : t('auth.login.submit')}</>
-                    ) : (
-                      <>
-                        <Mail className="mr-2 h-4 w-4" />
-                        {isLoading ? t('auth.login.sending') : t('auth.login.magicLink')}
-                      </>
-                    )}
+                    {isLoading ? t('auth.login.submitting') : t('auth.login.submit')}
                   </Button>
                 </form>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <Separator className="w-full bg-white/20" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-transparent px-2 text-white/70">{t('auth.login.or')}</span>
-                  </div>
-                </div>
-
-                <Button
-                  variant="outline"
-                  className="w-full h-10 md:h-11 bg-white/10 border-white/30 text-white hover:bg-white/20"
-                  onClick={() => setAuthMode(authMode === 'password' ? 'magic-link' : 'password')}
-                >
-                  {authMode === 'password' ? (
-                    <>
-                      <Mail className="mr-2 h-4 w-4" />
-                      {t('auth.login.useMagicLink')}
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="mr-2 h-4 w-4" />
-                      {t('auth.login.usePassword')}
-                    </>
-                  )}
-                </Button>
 
                 <div className="text-center text-sm">
                   <span className="text-white/70">{t('auth.login.noAccount')} </span>
@@ -236,8 +154,6 @@ export default function Login() {
                     {t('auth.login.createAccount')}
                   </Link>
                 </div>
-              </>
-            )}
           </CardContent>
         </Card>
       </motion.div>

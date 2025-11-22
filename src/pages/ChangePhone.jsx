@@ -7,6 +7,7 @@ import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
 import { Phone, ArrowLeft, AlertCircle } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
+import { useTranslation } from '../store/LanguageContext';
 import { apiFetch } from '../data/api';
 
 export default function ChangePhone() {
@@ -18,6 +19,7 @@ export default function ChangePhone() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { t } = useTranslation();
   
   const { currentPhone, email } = location.state || {};
 
@@ -205,7 +207,7 @@ export default function ChangePhone() {
               </Label>
               <Input
                 type="tel"
-                placeholder="Enter new phone number"
+                placeholder={t('auth.changePhone.placeholder')}
                 value={newPhoneNumber}
                 onChange={(e) => setNewPhoneNumber(e.target.value)}
                 className="bg-white/10 border-white/30 text-white placeholder-white/50 focus:border-white/50"

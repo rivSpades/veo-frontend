@@ -10,12 +10,9 @@ import { Select } from '../components/ui/Select';
 import { Badge } from '../components/ui/Badge';
 import { createMenu } from '../data/menus';
 import { useToast } from '../components/ui/Toast';
+import { useTranslation } from '../store/LanguageContext';
 
-const STEPS = [
-  { id: 1, title: 'Menu Info', icon: Utensils, description: 'Basic information about your menu' },
-  { id: 2, title: 'Languages', icon: Globe, description: 'Choose available languages' },
-  { id: 3, title: 'Review', icon: Eye, description: 'Review and create' },
-];
+// STEPS will be defined inside the component to use translations
 
 /**
  * MenuCreate Page - Step-by-step wizard for creating a new menu
@@ -24,6 +21,14 @@ const STEPS = [
 function MenuCreate() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
+  
+  const STEPS = [
+    { id: 1, title: t('menuCreate.steps.info'), icon: Utensils, description: t('menuCreate.steps.infoDesc') },
+    { id: 2, title: t('menuCreate.steps.languages'), icon: Globe, description: t('menuCreate.steps.languagesDesc') },
+    { id: 3, title: t('menuCreate.steps.review'), icon: Eye, description: t('menuCreate.steps.reviewDesc') },
+  ];
+  
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -63,7 +68,7 @@ function MenuCreate() {
 
   const handleNext = () => {
     if (currentStep === 1 && !formData.name.trim()) {
-      alert('Please enter a menu name to continue');
+      alert(t('menuCreate.alertNameRequired'));
       return;
     }
     setCurrentStep((prev) => Math.min(prev + 1, STEPS.length));
@@ -78,8 +83,8 @@ function MenuCreate() {
 
     if (!formData.name.trim()) {
       toast({
-        title: 'Error',
-        description: 'Please enter a menu name',
+        title: t('auth.error') || 'Error',
+        description: t('menuCreate.errorNameRequired'),
         type: 'error',
       });
       return;
@@ -102,8 +107,8 @@ function MenuCreate() {
 
       if (response.success && response.data && response.data.menu && response.data.menu.id) {
         toast({
-          title: 'Success',
-          description: 'Menu created successfully',
+          title: t('auth.success') || 'Success',
+          description: t('menuCreate.successCreated'),
           type: 'success',
         });
         navigate(`/dashboard/menus/${response.data.menu.id}/edit`);
@@ -153,7 +158,7 @@ function MenuCreate() {
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span className="font-medium">Back to Dashboard</span>
+            <span className="font-medium">{t('menuCreate.backToDashboard')}</span>
           </button>
         </div>
       </header>
@@ -225,8 +230,8 @@ function MenuCreate() {
                       <Utensils className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <CardTitle className="text-2xl">Let's Create Your Menu</CardTitle>
-                      <p className="text-gray-600 text-sm mt-1">Start by giving your menu a name and description</p>
+                      <CardTitle className="text-2xl">{t('menuCreate.title')}</CardTitle>
+                      <p className="text-gray-600 text-sm mt-1">{t('menuCreate.subtitle')}</p>
                     </div>
                   </div>
                 </CardHeader>
@@ -236,10 +241,9 @@ function MenuCreate() {
                     <div className="flex gap-3">
                       <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                       <div>
-                        <h4 className="font-semibold text-blue-900 text-sm mb-1">💡 Tip</h4>
+                        <h4 className="font-semibold text-blue-900 text-sm mb-1">{t('menuCreate.tip')}</h4>
                         <p className="text-blue-800 text-sm">
-                          Choose a name that describes when or where this menu is used. Examples: "Dinner Menu",
-                          "Lunch Specials", "Bar Menu", "Weekend Brunch"
+                          {t('menuCreate.tipName')}
                         </p>
                       </div>
                     </div>
@@ -248,7 +252,7 @@ function MenuCreate() {
                   {/* Menu Name */}
                   <div>
                     <Label htmlFor="name" className="text-lg font-semibold mb-3 flex items-center gap-2">
-                      Menu Name
+                      {t('menuCreate.nameLabel')}
                       <span className="text-red-500">*</span>
                     </Label>
                     <Input
@@ -256,54 +260,33 @@ function MenuCreate() {
                       name="name"
                       value={formData.name}
                       onChange={handleChange}
-                      placeholder="e.g., Dinner Menu"
+                      placeholder={t('menu.create.namePlaceholder')}
                       className="text-lg py-6"
                       required
                       autoFocus
                     />
-                    <p className="text-sm text-gray-500 mt-2">This will be the title customers see</p>
+                    <p className="text-sm text-gray-500 mt-2">{t('menuCreate.nameHelp')}</p>
                   </div>
 
                   {/* Description */}
                   <div>
                     <Label htmlFor="description" className="text-lg font-semibold mb-3">
-                      Description (Optional)
+                      {t('menuCreate.descriptionLabel')} ({t('menuCreate.optional')})
                     </Label>
                     <Textarea
                       id="description"
                       name="description"
                       value={formData.description}
                       onChange={handleChange}
-                      placeholder="Brief description of this menu... (e.g., 'Our delicious dinner options available from 6 PM to 10 PM')"
+                      placeholder={t('menu.create.descriptionPlaceholder')}
                       rows={4}
                       className="text-base"
                     />
                     <p className="text-sm text-gray-500 mt-2">
-                      Add a short description to help customers understand this menu
+                      {t('menuCreate.descriptionHelp')}
                     </p>
                   </div>
 
-                  {/* Menu Status */}
-                  <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                    <Label className="text-lg font-semibold mb-3 block">Menu Visibility</Label>
-                    <label className="flex items-start gap-4 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        name="enabled"
-                        checked={formData.enabled}
-                        onChange={handleChange}
-                        className="w-5 h-5 text-purple-600 focus:ring-purple-500 mt-1"
-                      />
-                      <div>
-                        <span className="text-base font-medium text-gray-900 block">
-                          Make this menu visible to customers
-                        </span>
-                        <span className="text-sm text-gray-600 block mt-1">
-                          You can always enable or disable this later
-                        </span>
-                      </div>
-                    </label>
-                  </div>
                 </CardContent>
               </Card>
             )}
@@ -317,9 +300,9 @@ function MenuCreate() {
                       <Globe className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <CardTitle className="text-2xl">Choose Languages</CardTitle>
+                      <CardTitle className="text-2xl">{t('menuCreate.languagesTitle')}</CardTitle>
                       <p className="text-gray-600 text-sm mt-1">
-                        Select which languages your menu will be available in
+                        {t('menuCreate.languagesSubtitle')}
                       </p>
                     </div>
                   </div>
@@ -330,10 +313,9 @@ function MenuCreate() {
                     <div className="flex gap-3">
                       <Sparkles className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                       <div>
-                        <h4 className="font-semibold text-green-900 text-sm mb-1">💡 Tip</h4>
+                        <h4 className="font-semibold text-green-900 text-sm mb-1">{t('menuCreate.tip')}</h4>
                         <p className="text-green-800 text-sm">
-                          Choose the languages your customers speak. You can translate your menu items later. At
-                          least one language must be selected.
+                          {t('menuCreate.tipLanguages')}
                         </p>
                       </div>
                     </div>
@@ -342,7 +324,7 @@ function MenuCreate() {
                   {/* Languages Selection */}
                   <div>
                     <Label className="text-lg font-semibold mb-4 block">
-                      Available Languages
+                      {t('menuCreate.availableLanguages')}
                       <span className="text-red-500 ml-1">*</span>
                     </Label>
                     <div className="space-y-3">
@@ -379,7 +361,7 @@ function MenuCreate() {
                   {formData.languages.length > 1 && (
                     <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
                       <Label htmlFor="defaultLanguage" className="text-lg font-semibold mb-3 block">
-                        Primary Language
+                        {t('menuCreate.primaryLanguage')}
                       </Label>
                       <Select
                         id="defaultLanguage"
@@ -415,8 +397,8 @@ function MenuCreate() {
                       <Eye className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <CardTitle className="text-2xl">Review Your Menu</CardTitle>
-                      <p className="text-gray-600 text-sm mt-1">Check everything looks good before creating</p>
+                      <CardTitle className="text-2xl">{t('menuCreate.reviewTitle')}</CardTitle>
+                      <p className="text-gray-600 text-sm mt-1">{t('menuCreate.reviewSubtitle')}</p>
                     </div>
                   </div>
                 </CardHeader>
@@ -475,7 +457,7 @@ function MenuCreate() {
                     {/* Languages */}
                     <div className="bg-white border-2 border-gray-200 rounded-lg p-5">
                       <div className="flex items-start justify-between mb-3">
-                        <h4 className="text-sm font-medium text-gray-500">LANGUAGES</h4>
+                        <h4 className="text-sm font-medium text-gray-500">{t('menuCreate.steps.languages').toUpperCase()}</h4>
                         <button
                           type="button"
                           onClick={() => setCurrentStep(2)}
@@ -496,57 +478,39 @@ function MenuCreate() {
                               }`}
                             >
                               {lang?.flag} {lang?.name}
-                              {isPrimary && <span className="ml-2 text-xs">(Primary)</span>}
+                              {isPrimary && <span className="ml-2 text-xs">{t('menuCreate.primary')}</span>}
                             </Badge>
                           );
                         })}
                       </div>
                     </div>
 
-                    {/* Visibility */}
-                    <div className="bg-white border-2 border-gray-200 rounded-lg p-5">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-500 mb-1">VISIBILITY</h4>
-                          <p className="text-base font-semibold text-gray-900">
-                            {formData.enabled ? '✅ Visible to customers' : '❌ Hidden from customers'}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setCurrentStep(1)}
-                          className="text-purple-600 hover:text-purple-700 text-sm font-medium"
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    </div>
                   </div>
 
                   {/* What's Next */}
                   <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 mt-8">
-                    <h4 className="font-semibold text-purple-900 text-lg mb-3">🎉 What's Next?</h4>
+                    <h4 className="font-semibold text-purple-900 text-lg mb-3">{t('menuCreate.whatsNext')}</h4>
                     <p className="text-purple-800 mb-4">
-                      After creating your menu, you'll be able to:
+                      {t('menuCreate.whatsNextDesc')}
                     </p>
                     <ul className="space-y-2 text-purple-800">
                       <li className="flex items-center gap-2">
                         <span className="w-6 h-6 bg-purple-200 rounded-full flex items-center justify-center text-xs font-bold">
                           1
                         </span>
-                        Add sections (e.g., Appetizers, Main Courses, Desserts)
+                        {t('menuCreate.whatsNext1')}
                       </li>
                       <li className="flex items-center gap-2">
                         <span className="w-6 h-6 bg-purple-200 rounded-full flex items-center justify-center text-xs font-bold">
                           2
                         </span>
-                        Add dishes with photos, prices, and descriptions
+                        {t('menuCreate.whatsNext2')}
                       </li>
                       <li className="flex items-center gap-2">
                         <span className="w-6 h-6 bg-purple-200 rounded-full flex items-center justify-center text-xs font-bold">
                           3
                         </span>
-                        Customize colors and styling
+                        {t('menuCreate.whatsNext3')}
                       </li>
                       <li className="flex items-center gap-2">
                         <span className="w-6 h-6 bg-purple-200 rounded-full flex items-center justify-center text-xs font-bold">
@@ -591,14 +555,14 @@ function MenuCreate() {
                   className="flex items-center gap-2 text-lg py-6 px-8 ml-auto bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Save className="w-5 h-5" />
-                  {isSubmitting ? 'Creating Menu...' : 'Create Menu & Add Dishes'}
+                  {isSubmitting ? t('menuCreate.creatingMenu') : t('menuCreate.createMenu')}
                 </Button>
               )}
             </div>
 
             {/* Step Indicator (Mobile) */}
             <div className="text-center text-sm text-gray-500 mt-6">
-              Step {currentStep} of {STEPS.length}
+              {t('menuCreate.stepIndicator').replace('{current}', currentStep).replace('{total}', STEPS.length)}
             </div>
           </form>
         </div>

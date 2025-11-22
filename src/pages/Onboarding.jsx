@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { instancesAPI } from '../data/api';
+import { instancesAPI, menusAPI } from '../data/api';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
@@ -31,14 +31,16 @@ import {
   Save,
 } from 'lucide-react';
 import { saveMenu } from '../utils/menuStorage';
+import { countries } from '../utils/countries';
 
+// Language definitions - names and descriptions will be translated
 const availableLanguages = [
-  { code: 'en', name: 'English', flag: '🇬🇧', description: 'International visitors' },
-  { code: 'pt', name: 'Português', flag: '🇵🇹', description: 'Portuguese speakers' },
-  { code: 'es', name: 'Español', flag: '🇪🇸', description: 'Spanish speakers' },
-  { code: 'fr', name: 'Français', flag: '🇫🇷', description: 'French speakers' },
-  { code: 'de', name: 'Deutsch', flag: '🇩🇪', description: 'German speakers' },
-  { code: 'it', name: 'Italiano', flag: '🇮🇹', description: 'Italian speakers' },
+  { code: 'en', flag: '🇬🇧' },
+  { code: 'pt', flag: '🇵🇹' },
+  { code: 'es', flag: '🇪🇸' },
+  { code: 'fr', flag: '🇫🇷' },
+  { code: 'de', flag: '🇩🇪' },
+  { code: 'it', flag: '🇮🇹' },
 ];
 
 export default function Onboarding() {
@@ -48,7 +50,7 @@ export default function Onboarding() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useTranslation();
-  const { refreshUser } = useAuth();
+  const { refreshUser, user } = useAuth();
 
   const [formData, setFormData] = useState({
     // Step 1: Restaurant Details
@@ -57,6 +59,7 @@ export default function Onboarding() {
     city: '',
     description: '',
     logo: null,
+    logoFile: null, // Store the actual file for upload
     phoneNumber: '',
 
     // Step 3: Restaurant Settings
@@ -67,8 +70,8 @@ export default function Onboarding() {
     closingTime: '22:00',
     googleBusinessUrl: '',
 
-    // Step 4: First Menu
-    createMenu: false, // true = create, false = skip
+    // Step 3: First Menu
+    createMenu: null, // null = not chosen, true = create, false = skip
     menuName: '',
     menuDescription: '',
     menuLanguages: ['en'],
@@ -76,8 +79,64 @@ export default function Onboarding() {
   });
 
   const totalSteps = 3;
-  const progress = (currentStep / totalSteps) * 100;
+  // Calculate progress accounting for sub-steps in step 3
+  const getProgress = () => {
+    if (currentStep === 1) return 33.33;
+    if (currentStep === 2) return 66.66;
+    if (currentStep === 3) {
+      // Step 3 has two states: choice view and menu creation sub-steps
+      if (formData.createMenu === null) {
+        // Choice view - show 66.66% (not 100% until they make a choice)
+        return 66.66;
+      } else if (formData.createMenu === false) {
+        // User chose to skip - show 100% (ready to complete)
+        return 100;
+      } else if (formData.createMenu === true) {
+        // Menu creation sub-steps: 66.66 + (33.33 / 3 * menuCreationStep)
+        return 66.66 + (33.33 / 3 * menuCreationStep);
+      }
+    }
+    return 100;
+  };
+  const progress = getProgress();
 
+  // Fetch existing instance data on mount if user has an instance
+  useEffect(() => {
+    const loadExistingInstance = async () => {
+      try {
+        const instanceId = localStorage.getItem('instance_id');
+        if (instanceId) {
+          const response = await instancesAPI.getInstance(instanceId);
+          if (response.success && response.data) {
+            const instanceData = response.data;
+            // Populate form with existing data
+            setFormData(prev => ({
+              ...prev,
+              restaurantName: instanceData.name || '',
+              country: instanceData.country || '',
+              city: instanceData.city || '',
+              description: instanceData.description || '',
+              phoneNumber: instanceData.phone || '',
+              wifiName: instanceData.wifi_name || '',
+              wifiPassword: instanceData.wifi_password || '',
+              googleBusinessUrl: instanceData.google_business_url || '',
+              configureSettings: !!(instanceData.wifi_name || instanceData.google_business_url),
+              logo: instanceData.logo 
+                ? (instanceData.logo.startsWith('http') 
+                    ? instanceData.logo 
+                    : `${process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000'}${instanceData.logo}`)
+                : null,
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error loading existing instance:', error);
+        // Don't show error to user, just continue with empty form
+      }
+    };
+
+    loadExistingInstance();
+  }, []);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -121,10 +180,15 @@ export default function Onboarding() {
       case 2:
         return true; // Can always proceed (skip or configure)
       case 3:
-        if (!formData.createMenu) return true; // Can skip
-        if (menuCreationStep === 1) return formData.menuName?.trim().length > 0;
-        if (menuCreationStep === 2) return formData.menuLanguages.length > 0;
-        if (menuCreationStep === 3) return true; // Review step
+        // Can proceed if user has made a choice (createMenu is not null)
+        if (formData.createMenu === null) return false; // Must make a choice first
+        if (formData.createMenu === false) return true; // Can skip
+        // If creating menu, validate sub-steps
+        if (formData.createMenu === true) {
+          if (menuCreationStep === 1) return formData.menuName?.trim().length > 0;
+          if (menuCreationStep === 2) return formData.menuLanguages.length > 0;
+          if (menuCreationStep === 3) return true; // Review step
+        }
         return true;
       default:
         return false;
@@ -136,24 +200,44 @@ export default function Onboarding() {
       // Restaurant details completed - go to settings
       setCurrentStep(2);
     } else if (currentStep === 2) {
-      // Settings configured or skipped - go to menu creation
+      // Settings configured or skipped - go to menu creation choice
       setCurrentStep(3);
+      // Reset menu creation state when entering step 3 (show choice view)
+      handleInputChange('createMenu', null);
+      setMenuCreationStep(1);
     } else if (currentStep === 3) {
-      if (formData.createMenu) {
+      // Step 3: Menu creation choice or sub-steps
+      if (formData.createMenu === null) {
+        // User hasn't made a choice yet - shouldn't be able to proceed
+        return;
+      } else if (formData.createMenu === false) {
+        // User chose to skip menu creation
+        handleComplete();
+      } else if (formData.createMenu === true) {
+        // User chose to create menu, proceed through sub-steps
         if (menuCreationStep < 3) {
           setMenuCreationStep(menuCreationStep + 1);
         } else {
           handleComplete();
         }
-      } else {
-        handleComplete();
       }
     }
   };
 
   const handleBack = () => {
-    if (currentStep === 3 && formData.createMenu && menuCreationStep > 1) {
-      setMenuCreationStep(menuCreationStep - 1);
+    if (currentStep === 3) {
+      if (formData.createMenu === true && menuCreationStep > 1) {
+        // Go back in menu creation sub-steps
+        setMenuCreationStep(menuCreationStep - 1);
+      } else if (formData.createMenu === true && menuCreationStep === 1) {
+        // Go back from menu creation form to step 2 (allow editing previous data)
+        setCurrentStep(2);
+        handleInputChange('createMenu', null);
+        setMenuCreationStep(1);
+      } else {
+        // Go back from menu choice to step 2
+        setCurrentStep(2);
+      }
     } else if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
@@ -173,6 +257,9 @@ export default function Onboarding() {
         phone: formData.phoneNumber,
       };
 
+      // Handle logo upload - use the stored file object
+      const logoFile = formData.logoFile || null;
+
       // Add optional settings if user configured them
       if (formData.configureSettings) {
         if (formData.wifiName) {
@@ -185,12 +272,44 @@ export default function Onboarding() {
         }
       }
 
-      const result = await instancesAPI.createInstance(instanceData);
+      // Create instance with logo if available
+      const result = logoFile 
+        ? await instancesAPI.createInstanceWithLogo(instanceData, logoFile)
+        : await instancesAPI.createInstance(instanceData);
 
       if (result.success) {
+        // Backend returns { instance: {...} } structure
+        const instanceId = result.data?.instance?.id || result.data?.id;
+        
         // Store the instance ID for immediate use
-        if (result.data?.id) {
-          localStorage.setItem('instance_id', result.data.id);
+        if (instanceId) {
+          localStorage.setItem('instance_id', instanceId);
+        } else {
+          console.error('Onboarding: No instance ID in response:', result.data);
+        }
+
+        // Create menu if user chose to create one
+        if (formData.createMenu && formData.menuName?.trim()) {
+          try {
+            const menuData = {
+              name: formData.menuName,
+              description: formData.menuDescription || '',
+              default_language: formData.menuDefaultLanguage || 'en',
+              available_languages: formData.menuLanguages || ['en'],
+              instance: instanceId,
+            };
+            
+            const menuResult = await menusAPI.createMenu(menuData);
+            if (menuResult.success) {
+              console.log('Menu created successfully:', menuResult.data);
+            } else {
+              console.error('Failed to create menu:', menuResult.error);
+              // Don't fail the whole onboarding if menu creation fails
+            }
+          } catch (menuError) {
+            console.error('Error creating menu:', menuError);
+            // Don't fail the whole onboarding if menu creation fails
+          }
         }
 
         // Refresh user data to get updated instance information
@@ -254,27 +373,33 @@ export default function Onboarding() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="country" className="text-white">
-                    Country
+                    {t('onboarding.restaurant.country')}
                   </Label>
                   <div className="relative">
-                    <MapPin className="absolute left-3 top-3 h-4 w-4 text-white/60" />
-                    <Input
+                    <MapPin className="absolute left-3 top-3 h-4 w-4 text-white/60 z-10" />
+                    <Select
                       id="country"
-                      placeholder="e.g., Portugal"
                       value={formData.country}
                       onChange={(e) => handleInputChange('country', e.target.value)}
-                      className="pl-10 bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-white/50"
-                    />
+                      className="pl-10 bg-white/10 border-white/30 text-white [&>option]:bg-gray-800 [&>option]:text-white"
+                    >
+                      <option value="">{t('onboarding.restaurant.countryPlaceholder')}</option>
+                      {countries.map((country) => (
+                        <option key={country.code} value={country.code}>
+                          {country.name}
+                        </option>
+                      ))}
+                    </Select>
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="city" className="text-white">
-                    City
+                    {t('onboarding.restaurant.city')}
                   </Label>
                   <Input
                     id="city"
-                    placeholder="e.g., Lisbon"
+                    placeholder={t('onboarding.restaurant.cityPlaceholder')}
                     value={formData.city}
                     onChange={(e) => handleInputChange('city', e.target.value)}
                     className="bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-white/50"
@@ -316,7 +441,7 @@ export default function Onboarding() {
                       onChange={handleLogoUpload}
                       className="cursor-pointer bg-white/10 border-white/30 text-white file:bg-white/20 file:text-white file:border-0"
                     />
-                    <p className="text-xs text-white/60 mt-1">PNG, JPG up to 2MB</p>
+                    <p className="text-xs text-white/60 mt-1">{t('onboarding.restaurant.logoHelp')}</p>
                   </div>
                 </div>
               </div>
@@ -456,135 +581,9 @@ export default function Onboarding() {
 
       // STEP 3: Create First Menu (Optional with sub-steps)
       case 3:
-        return (
-          <motion.div
-            key="step3"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="space-y-6"
-          >
-            <div className="text-center space-y-2">
-              <div className="w-16 h-16 bg-orange-500/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Settings className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="text-2xl font-bold text-white">{t('onboarding.settings.title')}</h2>
-              <p className="text-white/80">{t('onboarding.settings.subtitle')}</p>
-            </div>
-
-            {/* Choice Buttons */}
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => handleInputChange('configureSettings', true)}
-                className={`p-6 rounded-lg border-2 transition-all ${
-                  formData.configureSettings
-                    ? 'border-white bg-white/20'
-                    : 'border-white/30 hover:border-white/50'
-                }`}
-              >
-                <Settings className="w-12 h-12 text-white mx-auto mb-3" />
-                <h3 className="font-semibold text-white mb-1">{t('onboarding.settings.configureNow')}</h3>
-                <p className="text-sm text-white/70">{t('onboarding.settings.configureNowDesc')}</p>
-              </button>
-
-              <button
-                onClick={() => handleInputChange('configureSettings', false)}
-                className={`p-6 rounded-lg border-2 transition-all ${
-                  !formData.configureSettings
-                    ? 'border-white bg-white/20'
-                    : 'border-white/30 hover:border-white/50'
-                }`}
-              >
-                <ArrowRight className="w-12 h-12 text-white mx-auto mb-3" />
-                <h3 className="font-semibold text-white mb-1">{t('onboarding.settings.skipForNow')}</h3>
-                <p className="text-sm text-white/70">{t('onboarding.settings.skipForNowDesc')}</p>
-              </button>
-            </div>
-
-            {/* Settings Form (if user chooses to configure) */}
-            {formData.configureSettings && (
-              <div className="space-y-4 mt-6">
-                <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                  <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                    <Wifi className="w-5 h-5" />
-                    {t('onboarding.settings.wifiTitle')}
-                  </h3>
-                  <div className="space-y-3">
-                    <div>
-                      <Label htmlFor="wifiName" className="text-white text-sm">{t('onboarding.settings.wifiName')}</Label>
-                      <Input
-                        id="wifiName"
-                        placeholder={t('onboarding.settings.wifiNamePlaceholder')}
-                        value={formData.wifiName}
-                        onChange={(e) => handleInputChange('wifiName', e.target.value)}
-                        className="mt-1 bg-white/10 border-white/30 text-white placeholder:text-white/60"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="wifiPassword" className="text-white text-sm">{t('onboarding.settings.wifiPassword')}</Label>
-                      <Input
-                        id="wifiPassword"
-                        type="password"
-                        placeholder={t('onboarding.settings.wifiPasswordPlaceholder')}
-                        value={formData.wifiPassword}
-                        onChange={(e) => handleInputChange('wifiPassword', e.target.value)}
-                        className="mt-1 bg-white/10 border-white/30 text-white placeholder:text-white/60"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                  <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                    <Clock className="w-5 h-5" />
-                    {t('onboarding.settings.hoursTitle')}
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label htmlFor="openingTime" className="text-white text-sm">{t('onboarding.settings.openingTime')}</Label>
-                      <Input
-                        id="openingTime"
-                        type="time"
-                        value={formData.openingTime}
-                        onChange={(e) => handleInputChange('openingTime', e.target.value)}
-                        className="mt-1 bg-white/10 border-white/30 text-white"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="closingTime" className="text-white text-sm">{t('onboarding.settings.closingTime')}</Label>
-                      <Input
-                        id="closingTime"
-                        type="time"
-                        value={formData.closingTime}
-                        onChange={(e) => handleInputChange('closingTime', e.target.value)}
-                        className="mt-1 bg-white/10 border-white/30 text-white"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                  <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                    <Globe className="w-5 h-5" />
-                    {t('onboarding.settings.googleTitle')}
-                  </h3>
-                  <div>
-                    <Label htmlFor="googleBusinessUrl" className="text-white text-sm">{t('onboarding.settings.googleUrl')}</Label>
-                    <Input
-                      id="googleBusinessUrl"
-                      placeholder={t('onboarding.settings.googleUrlPlaceholder')}
-                      value={formData.googleBusinessUrl}
-                      onChange={(e) => handleInputChange('googleBusinessUrl', e.target.value)}
-                      className="mt-1 bg-white/10 border-white/30 text-white placeholder:text-white/60"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </motion.div>
-        );
-
-        if (!formData.createMenu) {
+        // Show choice view if createMenu is null (not yet chosen) or explicitly false
+        // Only show menu creation sub-steps if createMenu is explicitly true
+        if (formData.createMenu !== true) {
           // Show choice: create menu or skip
           return (
             <motion.div
@@ -608,7 +607,11 @@ export default function Onboarding() {
                     handleInputChange('createMenu', true);
                     setMenuCreationStep(1);
                   }}
-                  className="p-6 rounded-lg border-2 border-white/30 hover:border-white bg-white/10 hover:bg-white/20 transition-all"
+                  className={`p-6 rounded-lg border-2 transition-all ${
+                    formData.createMenu === true
+                      ? 'border-white bg-white/20'
+                      : 'border-white/30 hover:border-white bg-white/10 hover:bg-white/20'
+                  }`}
                 >
                   <Utensils className="w-12 h-12 text-white mx-auto mb-3" />
                   <h3 className="font-semibold text-white mb-1">{t('onboarding.menu.createNow')}</h3>
@@ -616,8 +619,16 @@ export default function Onboarding() {
                 </button>
 
                 <button
-                  onClick={() => handleInputChange('createMenu', false)}
-                  className="p-6 rounded-lg border-2 border-white/30 hover:border-white bg-white/10 hover:bg-white/20 transition-all"
+                  onClick={() => {
+                    handleInputChange('createMenu', false);
+                    // Immediately complete if skipping
+                    handleComplete();
+                  }}
+                  className={`p-6 rounded-lg border-2 transition-all ${
+                    formData.createMenu === false
+                      ? 'border-white bg-white/20'
+                      : 'border-white/30 hover:border-white bg-white/10 hover:bg-white/20'
+                  }`}
                 >
                   <ArrowRight className="w-12 h-12 text-white mx-auto mb-3" />
                   <h3 className="font-semibold text-white mb-1">{t('onboarding.menu.skipForNow')}</h3>
@@ -628,10 +639,11 @@ export default function Onboarding() {
           );
         }
 
-        // Menu creation sub-steps
-        if (menuCreationStep === 1) {
-          // Sub-step 1: Menu Info
-          return (
+        // Menu creation sub-steps (only show if user chose to create menu)
+        if (formData.createMenu === true) {
+          if (menuCreationStep === 1) {
+            // Sub-step 1: Menu Info
+            return (
             <motion.div
               key="step4-menu-info"
               initial={{ opacity: 0, x: 20 }}
@@ -735,8 +747,8 @@ export default function Onboarding() {
                       <div className="flex items-center gap-3">
                         <span className="text-3xl">{lang.flag}</span>
                         <div className="flex-1">
-                          <div className="font-semibold text-white">{lang.name}</div>
-                          <div className="text-sm text-white/70">{lang.description}</div>
+                          <div className="font-semibold text-white">{t(`onboarding.menu.language.${lang.code}`)}</div>
+                          <div className="text-sm text-white/70">{t(`onboarding.menu.language.${lang.code}Desc`)}</div>
                         </div>
                         {isSelected && (
                           <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
@@ -756,13 +768,13 @@ export default function Onboarding() {
                     id="menuDefaultLanguage"
                     value={formData.menuDefaultLanguage}
                     onChange={(e) => handleInputChange('menuDefaultLanguage', e.target.value)}
-                    className="mt-2 bg-white/10 border-white/30 text-white"
+                    className="mt-2 bg-white/10 border-white/30 text-white [&>option]:bg-gray-800 [&>option]:text-white"
                   >
                     {formData.menuLanguages.map((langCode) => {
                       const lang = availableLanguages.find((l) => l.code === langCode);
                       return (
                         <option key={langCode} value={langCode}>
-                          {lang?.flag} {lang?.name}
+                          {lang?.flag} {t(`onboarding.menu.language.${langCode}`)}
                         </option>
                       );
                     })}
@@ -833,7 +845,7 @@ export default function Onboarding() {
                             isPrimary ? 'bg-purple-100 text-purple-800' : 'bg-white/20 text-white'
                           }`}
                         >
-                          {lang?.flag} {lang?.name}
+                          {lang?.flag} {t(`onboarding.menu.language.${langCode}`)}
                           {isPrimary && ` (${t('onboarding.menu.primary')})`}
                         </Badge>
                       );
@@ -862,6 +874,7 @@ export default function Onboarding() {
               </div>
             </motion.div>
           );
+          }
         }
 
       default:
@@ -905,29 +918,31 @@ export default function Onboarding() {
           <Button
             variant="outline"
             onClick={handleBack}
-            disabled={currentStep === 1 || (currentStep === 3 && !formData.createMenu && menuCreationStep === 1)}
+            disabled={currentStep === 1 || (currentStep === 3 && formData.createMenu === null)}
             className="flex items-center gap-2 bg-white/10 border-white/30 text-white hover:bg-white/20"
           >
             <ArrowLeft className="w-4 h-4" />
             {t('onboarding.navigation.back')}
           </Button>
 
-          <Button
-            onClick={handleNext}
-            disabled={!canProceed() || isLoading}
-            className="flex items-center gap-2 bg-white text-purple-600 hover:bg-white/90 font-semibold"
-          >
+          {/* Only show Next button if not in choice view (step 3 with createMenu === null) */}
+          {!(currentStep === 3 && formData.createMenu === null) && (
+            <Button
+              onClick={handleNext}
+              disabled={!canProceed() || isLoading}
+              className="flex items-center gap-2 bg-white text-purple-600 hover:bg-white/90 font-semibold"
+            >
             {isLoading ? (
               <>
                 <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
                 {t('onboarding.navigation.settingUp')}
               </>
-            ) : currentStep === 3 && formData.createMenu && menuCreationStep === 3 ? (
+            ) : currentStep === 3 && formData.createMenu === true && menuCreationStep === 3 ? (
               <>
                 <Save className="w-4 h-4" />
                 {t('onboarding.navigation.createMenu')}
               </>
-            ) : currentStep === 3 && !formData.createMenu ? (
+            ) : currentStep === 3 && formData.createMenu === false ? (
               <>
                 <Sparkles className="w-4 h-4" />
                 {t('onboarding.navigation.completeSetup')}
@@ -943,7 +958,8 @@ export default function Onboarding() {
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
-          </Button>
+            </Button>
+          )}
         </div>
       </div>
     </div>

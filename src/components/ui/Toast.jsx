@@ -52,14 +52,18 @@ const Toast = ({ toast, onRemove }) => {
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
 
-  const toast = useCallback(({ title, description, type = 'info', duration = 5000 }) => {
+  const toast = useCallback(({ title, description, type = 'info', duration = 10000 }) => {
     const id = Math.random().toString(36).substr(2, 9);
     const newToast = { id, title, description, type };
 
     setToasts((prev) => [...prev, newToast]);
 
-    // Note: Toasts will need to be dismissed manually or use a different timing mechanism
-    // if duration > 0 is needed, consider using requestAnimationFrame or Date-based checks
+    // Auto-dismiss toast after duration (default 10 seconds)
+    if (duration > 0) {
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, duration);
+    }
 
     return { id };
   }, []);

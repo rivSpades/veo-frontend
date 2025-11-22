@@ -10,6 +10,7 @@ import { Badge } from "../components/ui/Badge";
 import { Avatar } from "../components/ui/Avatar";
 import { Dialog } from "../components/ui/Dialog";
 import { useToast } from "../components/ui/Toast";
+import { useTranslation } from "../store/LanguageContext";
 import { Ticket, Clock, CheckCircle, Star, Plus, Paperclip, Send, Upload } from "lucide-react";
 import {
   getTickets,
@@ -86,6 +87,7 @@ import {
 
 export default function Help() {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [tickets, setTickets] = useState([]);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [stats, setStats] = useState({ total: 0, open: 0, in_progress: 0, resolved: 0 });
@@ -129,8 +131,8 @@ export default function Help() {
     } else {
       console.error('Failed to load tickets:', response.error);
       toast({
-        title: 'Error',
-        description: response.error?.message || 'Failed to load tickets',
+        title: t('dashboard.help.error'),
+        description: response.error?.message || t('dashboard.help.failedToLoad'),
         type: 'error',
       });
       setTickets([]); // Ensure it's always an array even on error
@@ -187,8 +189,8 @@ export default function Help() {
 
     if (file.size > 5 * 1024 * 1024) {
       toast({
-        title: 'File too large',
-        description: 'Please select an image smaller than 5MB',
+        title: t('dashboard.help.fileTooLarge'),
+        description: t('dashboard.help.fileTooLargeDesc'),
         type: 'error',
       });
       return;
@@ -202,8 +204,8 @@ export default function Help() {
   const handleCreateTicket = async () => {
     if (!newTicket.title || !newTicket.description || !newTicket.category) {
       toast({
-        title: 'Validation Error',
-        description: 'Please fill in all required fields',
+        title: t('dashboard.help.validationError'),
+        description: t('dashboard.help.validationErrorDesc'),
         type: 'error',
       });
       return;
@@ -236,8 +238,8 @@ export default function Help() {
       console.log('Ticket created successfully:', response.data);
       
       toast({
-        title: 'Success',
-        description: `Ticket ${response.data.ticket_number} created successfully`,
+        title: t('dashboard.help.success'),
+        description: t('dashboard.help.ticketCreated').replace('{number}', response.data.ticket_number),
         type: 'success',
       });
       
@@ -259,8 +261,8 @@ export default function Help() {
     } else {
       console.error('Failed to create ticket:', response.error);
       toast({
-        title: 'Error',
-        description: response.error?.message || 'Failed to create ticket',
+        title: t('dashboard.help.error'),
+        description: response.error?.message || t('dashboard.help.failedToCreate'),
         type: 'error',
       });
     }
@@ -289,8 +291,8 @@ export default function Help() {
     const response = await closeTicket(selectedTicket.id);
     if (response.success) {
       toast({
-        title: 'Success',
-        description: 'Ticket has been closed',
+        title: t('dashboard.help.success'),
+        description: t('dashboard.help.ticketClosed'),
         type: 'success',
       });
       
@@ -307,8 +309,8 @@ export default function Help() {
       await loadStats();
     } else {
       toast({
-        title: 'Error',
-        description: 'Failed to close ticket',
+        title: t('dashboard.help.error'),
+        description: t('dashboard.help.failedToClose'),
         type: 'error',
       });
     }
@@ -319,8 +321,8 @@ export default function Help() {
     
     if (!canUserReply()) {
       toast({
-        title: 'Cannot reply yet',
-        description: 'Please wait for support team to respond first',
+        title: t('dashboard.help.cannotReply'),
+        description: t('dashboard.help.cannotReplyDesc'),
         type: 'info',
       });
       return;
@@ -329,8 +331,8 @@ export default function Help() {
     const response = await addTicketMessage(selectedTicket.id, replyMessage);
     if (response.success) {
       toast({
-        title: 'Success',
-        description: 'Reply sent successfully',
+        title: t('dashboard.help.success'),
+        description: t('dashboard.help.replySent'),
         type: 'success',
       });
       setReplyMessage("");
@@ -345,21 +347,21 @@ export default function Help() {
       }
     } else {
       toast({
-        title: 'Error',
-        description: 'Failed to send reply',
+        title: t('dashboard.help.error'),
+        description: t('dashboard.help.failedToSend'),
         type: 'error',
       });
     }
   };
 
   const categoryOptions = [
-    { value: 'cannot_use_app', label: 'I cannot use the app', priority: 'Critical' },
-    { value: 'payment_issue', label: 'Payment or billing issue', priority: 'High' },
-    { value: 'menu_not_loading', label: 'Menu not loading properly', priority: 'High' },
-    { value: 'qr_code_issue', label: 'QR code problem', priority: 'Medium' },
-    { value: 'translation_error', label: 'Translation or language issue', priority: 'Medium' },
-    { value: 'feature_request', label: 'Feature request or suggestion', priority: 'Low' },
-    { value: 'other', label: 'Other issue', priority: 'Medium' },
+    { value: 'cannot_use_app', label: t('dashboard.help.category.cannotUseApp'), priority: 'Critical' },
+    { value: 'payment_issue', label: t('dashboard.help.category.paymentIssue'), priority: 'High' },
+    { value: 'menu_not_loading', label: t('dashboard.help.category.menuNotLoading'), priority: 'High' },
+    { value: 'qr_code_issue', label: t('dashboard.help.category.qrCodeIssue'), priority: 'Medium' },
+    { value: 'translation_error', label: t('dashboard.help.category.translationError'), priority: 'Medium' },
+    { value: 'feature_request', label: t('dashboard.help.category.featureRequest'), priority: 'Low' },
+    { value: 'other', label: t('dashboard.help.category.other'), priority: 'Medium' },
   ];
 
   const formatDate = (dateString) => {
@@ -426,15 +428,15 @@ export default function Help() {
 
   return (
     <DashboardLayout
-      title="Support Center"
-      subtitle="Get help and submit support tickets"
+      title={t('dashboard.help.title')}
+      subtitle={t('dashboard.help.subtitle')}
       action={
         <button
           onClick={() => setIsNewTicketOpen(true)}
           className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          New Ticket
+          {t('dashboard.help.newTicket')}
         </button>
       }
     >
@@ -444,10 +446,10 @@ export default function Help() {
         {isNewTicketOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-              <h2 className="text-xl font-bold mb-4">Create New Support Ticket</h2>
+              <h2 className="text-xl font-bold mb-4">{t('dashboard.help.createNewTicket')}</h2>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="ticketCategory">What type of issue are you experiencing? *</Label>
+                  <Label htmlFor="ticketCategory">{t('dashboard.help.issueType')}</Label>
                   <Select
                     id="ticketCategory"
                     value={newTicket.category}
@@ -461,7 +463,7 @@ export default function Help() {
                     ))}
                   </Select>
                   <p className="text-xs text-gray-500 mt-1">
-                    Priority is automatically assigned based on issue type
+                    {t('dashboard.help.priorityAuto')}
                   </p>
                 </div>
                 
@@ -471,7 +473,7 @@ export default function Help() {
                     id="ticketTitle"
                     value={newTicket.title}
                     onChange={(e) => setNewTicket((prev) => ({ ...prev, title: e.target.value }))}
-                    placeholder="Brief summary of your issue"
+                    placeholder={t('dashboard.help.ticketTitlePlaceholder')}
                     className="mt-1"
                   />
                 </div>
@@ -482,13 +484,13 @@ export default function Help() {
                     id="ticketDescription"
                     value={newTicket.description}
                     onChange={(e) => setNewTicket((prev) => ({ ...prev, description: e.target.value }))}
-                    placeholder="Provide detailed information about your issue"
+                    placeholder={t('dashboard.help.ticketDescriptionPlaceholder')}
                     className="mt-1 min-h-[100px]"
                   />
                 </div>
                 
                 <div>
-                  <Label htmlFor="ticketScreenshot">Screenshot (Optional)</Label>
+                  <Label htmlFor="ticketScreenshot">{t('dashboard.help.screenshot')}</Label>
                   <div className="mt-1 border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
                     {newTicket.screenshot ? (
                       <div className="space-y-2">
@@ -509,7 +511,7 @@ export default function Help() {
                     ) : (
                       <>
                         <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-600 mb-2">Upload a screenshot</p>
+                        <p className="text-sm text-gray-600 mb-2">{t('dashboard.help.uploadScreenshot')}</p>
                         <div className="relative inline-block">
                           <input
                             type="file"
@@ -520,10 +522,10 @@ export default function Help() {
                             disabled={uploadingImage}
                           />
                           <Button variant="outline" size="sm" disabled={uploadingImage}>
-                            {uploadingImage ? 'Uploading...' : 'Choose File'}
+                            {uploadingImage ? t('dashboard.help.uploading') : t('dashboard.help.chooseFile')}
                           </Button>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 5MB</p>
+                        <p className="text-xs text-gray-500 mt-1">{t('dashboard.help.fileSize')}</p>
                       </>
                     )}
                   </div>
@@ -531,10 +533,10 @@ export default function Help() {
                 
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setIsNewTicketOpen(false)}>
-                    Cancel
+                    {t('dashboard.help.cancel')}
                   </Button>
                   <Button onClick={handleCreateTicket} className="bg-purple-600 hover:bg-purple-700">
-                    Create Ticket
+                    {t('dashboard.help.createTicket')}
                   </Button>
                 </div>
               </div>
@@ -551,7 +553,7 @@ export default function Help() {
             </div>
             <div>
               <p className="text-2xl font-bold">{stats.total}</p>
-              <p className="text-sm text-gray-600">Total Tickets</p>
+              <p className="text-sm text-gray-600">{t('dashboard.help.totalTickets')}</p>
             </div>
           </CardContent>
         </Card>
@@ -562,7 +564,7 @@ export default function Help() {
             </div>
             <div>
               <p className="text-2xl font-bold">{stats.open}</p>
-              <p className="text-sm text-gray-600">Open Tickets</p>
+              <p className="text-sm text-gray-600">{t('dashboard.help.openTickets')}</p>
             </div>
           </CardContent>
         </Card>
@@ -573,7 +575,7 @@ export default function Help() {
             </div>
             <div>
               <p className="text-2xl font-bold">{stats.resolved}</p>
-              <p className="text-sm text-gray-600">Resolved</p>
+              <p className="text-sm text-gray-600">{t('dashboard.help.resolved')}</p>
             </div>
           </CardContent>
         </Card>
@@ -584,7 +586,7 @@ export default function Help() {
             </div>
             <div>
               <p className="text-2xl font-bold">{stats.in_progress}</p>
-              <p className="text-sm text-gray-600">In Progress</p>
+              <p className="text-sm text-gray-600">{t('dashboard.help.inProgress')}</p>
             </div>
           </CardContent>
         </Card>
@@ -598,35 +600,35 @@ export default function Help() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Your Tickets</CardTitle>
+                  <CardTitle>{t('dashboard.help.yourTickets')}</CardTitle>
                   <p className="text-xs text-gray-500 mt-1">
-                    Showing {filteredTickets.length} of {tickets.length} tickets
+                    {t('dashboard.help.showing').replace('{count}', filteredTickets.length).replace('{total}', tickets.length)}
                   </p>
                 </div>
                 <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-32">
-                  <option value="All Status">All Status</option>
-                  <option value="Open">Open</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Resolved">Resolved</option>
-                  <option value="Closed">Closed</option>
+                  <option value="All Status">{t('dashboard.help.allStatus')}</option>
+                  <option value="Open">{t('dashboard.help.open')}</option>
+                  <option value="In Progress">{t('dashboard.help.inProgress')}</option>
+                  <option value="Resolved">{t('dashboard.help.resolved')}</option>
+                  <option value="Closed">{t('dashboard.help.closed')}</option>
                 </Select>
               </div>
             </CardHeader>
             <CardContent className="p-0">
               {loading ? (
                 <div className="p-8 text-center text-gray-500">
-                  Loading tickets...
+                  {t('dashboard.help.loadingTickets')}
                 </div>
               ) : tickets.length === 0 ? (
                 <div className="p-8 text-center text-gray-500">
                   <Ticket className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>No tickets yet</p>
-                  <p className="text-sm mt-1">Create your first support ticket to get help</p>
+                  <p>{t('dashboard.help.noTickets')}</p>
+                  <p className="text-sm mt-1">{t('dashboard.help.noTicketsDesc')}</p>
                 </div>
               ) : filteredTickets.length === 0 ? (
                 <div className="p-8 text-center text-gray-500">
-                  <p className="text-sm">No tickets match this filter</p>
-                  <p className="text-xs mt-1">Try selecting a different status</p>
+                  <p className="text-sm">{t('dashboard.help.noMatch')}</p>
+                  <p className="text-xs mt-1">{t('dashboard.help.noMatchDesc')}</p>
                 </div>
               ) : (
                 <div className="space-y-1">
@@ -674,8 +676,8 @@ export default function Help() {
             <Card className="h-full flex items-center justify-center">
               <CardContent className="text-center text-gray-500 p-12">
                 <Ticket className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg">No ticket selected</p>
-                <p className="text-sm mt-2">Select a ticket from the list to view details</p>
+                <p className="text-lg">{t('dashboard.help.noTicketSelected')}</p>
+                <p className="text-sm mt-2">{t('dashboard.help.noTicketSelectedDesc')}</p>
               </CardContent>
             </Card>
           ) : (
@@ -685,11 +687,11 @@ export default function Help() {
                 <div>
                   <CardTitle className="text-lg">{selectedTicket.title}</CardTitle>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-sm text-gray-500">Ticket #{selectedTicket.ticket_number}</span>
+                    <span className="text-sm text-gray-500">{t('dashboard.help.ticketNumber').replace('{number}', selectedTicket.ticket_number)}</span>
                     {selectedTicket.created_at && (
                       <>
                         <span className="text-sm text-gray-500">•</span>
-                        <span className="text-sm text-gray-500">Created {formatDate(selectedTicket.created_at)}</span>
+                        <span className="text-sm text-gray-500">{t('dashboard.help.created').replace('{date}', formatDate(selectedTicket.created_at))}</span>
                       </>
                     )}
                   </div>
@@ -697,7 +699,7 @@ export default function Help() {
                 <div className="flex gap-2">
                   <Badge className={`${getStatusColor(selectedTicket.status)}`}>{selectedTicket.status}</Badge>
                   <Badge className={`${getPriorityColor(selectedTicket.priority)}`}>
-                    {selectedTicket.priority} Priority
+                    {selectedTicket.priority} {t('dashboard.help.priority')}
                   </Badge>
                   {(selectedTicket.status === 'resolved' || selectedTicket.status === 'open' || selectedTicket.status === 'in_progress') && (
                     <Button 
@@ -706,7 +708,7 @@ export default function Help() {
                       onClick={handleCloseTicket}
                       className="ml-2"
                     >
-                      Close Ticket
+                      {t('dashboard.help.closeTicket')}
                     </Button>
                   )}
                 </div>
@@ -717,16 +719,16 @@ export default function Help() {
               {selectedTicket.description && (
                 <div className="border-b pb-4 mb-4">
                   <div className="flex items-start gap-2 mb-2">
-                    <Badge className="bg-blue-100 text-blue-700 text-xs">Initial Request</Badge>
+                    <Badge className="bg-blue-100 text-blue-700 text-xs">{t('dashboard.help.initialRequest')}</Badge>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-sm font-medium mb-2">Description:</p>
+                    <p className="text-sm font-medium mb-2">{t('dashboard.help.description')}</p>
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedTicket.description}</p>
                     
                     {/* Show screenshot if uploaded */}
                     {selectedTicket.screenshot && (
                       <div className="mt-3">
-                        <p className="text-xs font-medium text-gray-600 mb-2">Screenshot:</p>
+                        <p className="text-xs font-medium text-gray-600 mb-2">{t('dashboard.help.screenshotLabel')}</p>
                         <img 
                           src={selectedTicket.screenshot} 
                           alt="Ticket screenshot" 
@@ -810,14 +812,14 @@ export default function Help() {
                 {canUserReply() ? (
                   <>
                     <Label htmlFor="reply" className="text-sm font-medium">
-                      Add a reply
+                      {t('dashboard.help.addReply')}
                     </Label>
                     <div className="flex gap-2 mt-2">
                       <Textarea
                         id="reply"
                         value={replyMessage}
                         onChange={(e) => setReplyMessage(e.target.value)}
-                        placeholder="Type your message here..."
+                        placeholder={t('dashboard.help.messagePlaceholder')}
                         className="flex-1 min-h-[80px]"
                       />
                       <div className="flex flex-col gap-2">
@@ -833,9 +835,9 @@ export default function Help() {
                 ) : (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
                     <Clock className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
-                    <p className="text-sm font-medium text-yellow-800">Waiting for support team response</p>
+                    <p className="text-sm font-medium text-yellow-800">{t('dashboard.help.waitingForSupport')}</p>
                     <p className="text-xs text-yellow-600 mt-1">
-                      You'll be able to reply once our support team responds to your ticket
+                      {t('dashboard.help.waitingDesc')}
                     </p>
                   </div>
                 )}

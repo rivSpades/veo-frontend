@@ -8,6 +8,7 @@ import { Card, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Switch } from '../components/ui/Switch';
 import { useToast } from '../components/ui/Toast';
+import { useTranslation } from '../store/LanguageContext';
 import {
   Search,
   Filter,
@@ -70,16 +71,25 @@ const getMenuIcon = (menu) => {
   return { icon: IconComponent, color: 'bg-purple-500' };
 };
 
-const getTimeAgo = (dateString) => {
+const getTimeAgo = (dateString, t) => {
+  if (!dateString) return t('menus.updatedToday') || 'Updated today';
+  
   const date = new Date(dateString);
   const now = new Date();
+  
+  // Check if date is valid
+  if (isNaN(date.getTime())) return t('menus.updatedToday') || 'Updated today';
+  
   const diffInDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Handle negative values (future dates)
+  if (diffInDays < 0) return t('menus.updatedToday') || 'Updated today';
 
-  if (diffInDays === 0) return 'Updated today';
-  if (diffInDays === 1) return 'Updated 1 day ago';
-  if (diffInDays < 7) return `Updated ${diffInDays} days ago`;
-  if (diffInDays < 14) return 'Updated 1 week ago';
-  return `Updated ${Math.floor(diffInDays / 7)} weeks ago`;
+  if (diffInDays === 0) return t('menus.updatedToday') || 'Updated today';
+  if (diffInDays === 1) return (t('menus.updatedDaysAgo') || 'Updated {count} days ago').replace('{count}', '1');
+  if (diffInDays < 7) return (t('menus.updatedDaysAgo') || `Updated ${diffInDays} days ago`).replace('{count}', diffInDays.toString());
+  if (diffInDays < 14) return (t('menus.updatedWeeksAgo') || 'Updated 1 week ago').replace('{count}', '1');
+  return (t('menus.updatedWeeksAgo') || `Updated ${Math.floor(diffInDays / 7)} weeks ago`).replace('{count}', Math.floor(diffInDays / 7).toString());
 };
 
 // Helper function to transform backend business hours to frontend format
@@ -109,6 +119,7 @@ export default function Menus() {
   const [restaurant, setRestaurant] = useState(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   useEffect(() => {
     loadMenus();
@@ -203,8 +214,8 @@ export default function Menus() {
         ));
 
         toast({
-          title: 'Success',
-          description: `Menu ${isActive ? 'activated' : 'deactivated'} successfully`,
+          title: t('menus.success') || 'Success',
+          description: isActive ? t('menus.activated') : t('menus.deactivated'),
           type: 'success',
         });
       } else {
@@ -236,8 +247,8 @@ export default function Menus() {
       if (response.success && response.data && response.data.menu) {
         setMenus((prev) => [response.data.menu, ...prev]);
         toast({
-          title: 'Success',
-          description: 'Menu duplicated successfully',
+          title: t('menus.success') || 'Success',
+          description: t('menus.duplicated') || 'Menu duplicated successfully',
           type: 'success',
         });
       } else {
@@ -263,18 +274,18 @@ export default function Menus() {
       return;
     }
 
-    if (window.confirm('Are you sure you want to delete this menu?')) {
+    if (window.confirm(t('menus.confirmDelete') || 'Are you sure you want to delete this menu?')) {
       try {
         const response = await deleteMenuAPI(menuId);
 
         if (response.success) {
           // Filter out the deleted menu
           setMenus((prevMenus) => prevMenus.filter((menu) => menu.id !== menuId));
-          toast({
-            title: 'Success',
-            description: 'Menu deleted successfully',
-            type: 'success',
-          });
+        toast({
+          title: t('menus.success') || 'Success',
+          description: t('menus.deleted') || 'Menu deleted successfully',
+          type: 'success',
+        });
         } else {
           toast({
             title: 'Error',
@@ -306,11 +317,11 @@ export default function Menus() {
         const response = await updateMenuAPI(scheduleMenu.id, { schedule });
         if (response.success) {
           setMenus(menus.map((menu) => (menu.id === scheduleMenu.id ? response.data : menu)));
-          toast({
-            title: 'Success',
-            description: 'Schedule saved successfully',
-            type: 'success',
-          });
+        toast({
+          title: t('menus.success') || 'Success',
+          description: t('menus.scheduleSaved') || 'Schedule saved successfully',
+          type: 'success',
+        });
         } else {
           toast({
             title: 'Error',
@@ -455,7 +466,7 @@ export default function Menus() {
 
   if (loading) {
     return (
-      <DashboardLayout title="Menus" subtitle="Manage your restaurant menus">
+      <DashboardLayout title={t('menus.title')} subtitle={t('menus.subtitle')}>
         <div className="p-6">
           <div className="animate-pulse space-y-6">
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -471,22 +482,22 @@ export default function Menus() {
 
   return (
     <DashboardLayout
-      title="Menus"
-      subtitle="Manage your restaurant menus"
+      title={t('menus.title')}
+      subtitle={t('menus.subtitle')}
       action={
         <Button onClick={handleCreateMenu} className="bg-purple-600 hover:bg-purple-700">
           <Plus className="w-4 h-4 mr-2" />
-          New Menu
+          {t('menus.newMenu')}
         </Button>
       }
     >
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
         {/* Search and Filters */}
         <div className="flex items-center gap-4">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
-              placeholder="Search menus..."
+              placeholder={t('menus.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 h-9"
@@ -494,19 +505,19 @@ export default function Menus() {
           </div>
 
           <Select value={languageFilter} onChange={(e) => setLanguageFilter(e.target.value)} className="w-40 h-9">
-            <option value="all">All Languages</option>
-            <option value="en">English</option>
-            <option value="pt">Portuguese</option>
-            <option value="es">Spanish</option>
-            <option value="fr">French</option>
-            <option value="de">German</option>
-            <option value="it">Italian</option>
+            <option value="all">{t('menus.allLanguages')}</option>
+            <option value="en">{t('menus.language.en')}</option>
+            <option value="pt">{t('menus.language.pt')}</option>
+            <option value="es">{t('menus.language.es')}</option>
+            <option value="fr">{t('menus.language.fr')}</option>
+            <option value="de">{t('menus.language.de')}</option>
+            <option value="it">{t('menus.language.it')}</option>
           </Select>
 
           <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-32 h-9">
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
+            <option value="all">{t('menus.allStatus')}</option>
+            <option value="active">{t('menus.status.active')}</option>
+            <option value="inactive">{t('menus.status.inactive')}</option>
           </Select>
 
           <Button variant="outline" size="icon" title="Filter" className="h-9 w-9">
@@ -517,8 +528,8 @@ export default function Menus() {
         {/* Section Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold">Your Menus ({filteredMenus.length})</h2>
-            <p className="text-sm text-gray-600">Manage all your restaurant menus</p>
+            <h2 className="text-xl font-semibold">{t('menus.yourMenus').replace('{count}', filteredMenus.length)}</h2>
+            <p className="text-sm text-gray-600">{t('menus.manageAll')}</p>
           </div>
           <div className="flex gap-1 border rounded-md">
             <Button
@@ -544,13 +555,13 @@ export default function Menus() {
         {filteredMenus.length === 0 ? (
           <div className="text-center py-12">
             <Utensils className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No menus found</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('menus.noMenusFound')}</h3>
             <p className="text-gray-500 mb-6">
-              {searchQuery ? 'Try adjusting your search.' : 'Get started by creating your first menu.'}
+              {searchQuery ? t('menus.tryAdjustingSearch') : t('menus.getStartedDesc')}
             </p>
             <Button onClick={handleCreateMenu} className="bg-purple-600 hover:bg-purple-700">
               <Plus className="w-4 h-4 mr-2" />
-              Create Your First Menu
+              {t('menus.createFirstMenu')}
             </Button>
           </div>
         ) : (
@@ -566,9 +577,9 @@ export default function Menus() {
                         <IconComponent className="w-6 h-6 text-white" />
                       </div>
                       {menu.enabled ? (
-                        <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">Active</Badge>
+                        <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">{t('menus.status.active')}</Badge>
                       ) : (
-                        <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">Inactive</Badge>
+                        <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">{t('menus.status.inactive')}</Badge>
                       )}
                     </div>
 
@@ -576,7 +587,10 @@ export default function Menus() {
                     <div className="space-y-3">
                       <div>
                         <h3 className="font-semibold text-lg">{menu.name}</h3>
-                        <p className="text-sm text-gray-500">{getTimeAgo(menu.lastUpdated || menu.updatedAt)}</p>
+                        {menu.description && (
+                          <p className="text-sm text-gray-600 mt-1">{menu.description}</p>
+                        )}
+                        <p className="text-sm text-gray-500 mt-1">{getTimeAgo(menu.lastUpdated || menu.updatedAt, t)}</p>
                       </div>
 
                       {/* Schedule Info (if present) */}
@@ -613,7 +627,7 @@ export default function Menus() {
 
                       {/* Manual Toggle */}
                       <div className="flex items-center justify-between pt-2">
-                        <span className="text-sm text-gray-600">Manual Override</span>
+                        <span className="text-sm text-gray-600">{t('menus.manualOverride')}</span>
                         <Switch
                           checked={menu.enabled || false}
                           onCheckedChange={(checked) => handleToggleMenu(menu.id, checked)}
@@ -630,7 +644,7 @@ export default function Menus() {
                           className="text-xs h-8"
                         >
                           <Eye className="w-3 h-3 mr-1" />
-                          Preview
+                          {t('menus.preview')}
                         </Button>
                         <Button
                           size="sm"
@@ -639,7 +653,7 @@ export default function Menus() {
                           className="text-xs h-8"
                         >
                           <Edit className="w-3 h-3 mr-1" />
-                          Edit
+                          {t('menus.edit')}
                         </Button>
                         <Button
                           size="sm"
@@ -648,7 +662,7 @@ export default function Menus() {
                           className="text-xs h-8 text-blue-600 hover:text-blue-700 bg-transparent"
                         >
                           <Clock className="w-3 h-3 mr-1" />
-                          Schedule
+                          {t('menus.schedule')}
                         </Button>
                         <Button
                           size="sm"
@@ -657,7 +671,7 @@ export default function Menus() {
                           className="text-xs h-8 text-teal-600 hover:text-teal-700"
                         >
                           <Copy className="w-3 h-3 mr-1" />
-                          Duplicate
+                          {t('menus.duplicate')}
                         </Button>
                       </div>
                       {/* Delete - full width */}
@@ -668,7 +682,7 @@ export default function Menus() {
                         className="w-full text-xs h-8 text-red-600 hover:text-red-700"
                       >
                         <Trash2 className="w-3 h-3 mr-1" />
-                        Delete
+                        {t('menus.delete')}
                       </Button>
                     </div>
                   </CardContent>

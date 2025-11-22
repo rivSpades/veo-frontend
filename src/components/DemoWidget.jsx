@@ -166,6 +166,62 @@ export function DemoWidget({
       de: 'Allergeninformationen',
       it: 'Informazioni sugli Allergeni',
     },
+    info: {
+      pt: 'Informações',
+      en: 'Info',
+      es: 'Información',
+      fr: 'Info',
+      de: 'Info',
+      it: 'Info',
+    },
+    googleReviews: {
+      pt: 'Avaliações do Google',
+      en: 'Google Reviews',
+      es: 'Reseñas de Google',
+      fr: 'Avis Google',
+      de: 'Google Bewertungen',
+      it: 'Recensioni Google',
+    },
+    reviews: {
+      pt: 'avaliações',
+      en: 'reviews',
+      es: 'reseñas',
+      fr: 'avis',
+      de: 'Bewertungen',
+      it: 'recensioni',
+    },
+    from: {
+      pt: 'De',
+      en: 'From',
+      es: 'De',
+      fr: 'De',
+      de: 'Von',
+      it: 'Da',
+    },
+    to: {
+      pt: 'até',
+      en: 'to',
+      es: 'a',
+      fr: 'à',
+      de: 'bis',
+      it: 'a',
+    },
+    openingHours: {
+      pt: 'Horário de Funcionamento',
+      en: 'Opening Hours',
+      es: 'Horario de Apertura',
+      fr: 'Heures d\'Ouverture',
+      de: 'Öffnungszeiten',
+      it: 'Orari di Apertura',
+    },
+    closed: {
+      pt: 'Fechado',
+      en: 'Closed',
+      es: 'Cerrado',
+      fr: 'Fermé',
+      de: 'Geschlossen',
+      it: 'Chiuso',
+    },
     description: {
       pt: 'Descrição',
       en: 'Description',
@@ -406,6 +462,7 @@ export function DemoWidget({
           design={design}
           getTranslation={getTranslation}
           languageOptions={languageOptions}
+          uiTranslations={uiTranslations}
         />
       ) : currentView === 'section' ? (
         <SectionView
@@ -447,6 +504,7 @@ function MainMenuView({
   design,
   getTranslation,
   languageOptions,
+  uiTranslations,
 }) {
   // Get available languages from menu
   const availableLanguages = menu?.languages || ['pt'];
@@ -499,7 +557,7 @@ function MainMenuView({
         {/* Info section */}
         <div className="border-t pt-3 space-y-2" style={{ borderColor: design?.sectionBackgroundColor || '#F3F4F6' }}>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium" style={{ color: design?.sectionTextColor || '#374151' }}>Info</span>
+            <span className="text-sm font-medium" style={{ color: design?.sectionTextColor || '#374151' }}>{uiTranslations.info[selectedLanguage] || 'Info'}</span>
           </div>
 
           {/* WiFi Password */}
@@ -543,9 +601,9 @@ function MainMenuView({
                     </span>
                   </div>
                   <div>
-                    <p className="text-xs font-medium" style={{ color: design?.fontColor || '#1F2937' }}>Google Reviews</p>
+                    <p className="text-xs font-medium" style={{ color: design?.fontColor || '#1F2937' }}>{uiTranslations.googleReviews[selectedLanguage] || 'Google Reviews'}</p>
                     <p className="text-xs" style={{ color: design?.subsectionTextColor || '#6B7280' }}>
-                      {restaurant.googleReviewCount} reviews
+                      {restaurant.googleReviewCount} {uiTranslations.reviews[selectedLanguage] || 'reviews'}
                     </p>
                   </div>
                 </div>
@@ -597,7 +655,15 @@ function MainMenuView({
           let currentGroup = null;
 
           restaurant.workingHours.forEach((day, index) => {
-            const timeStr = day.closed ? 'Closed' : `${day.open} - ${day.close}`;
+            // Format time to remove seconds (HH:mm format)
+            const formatTime = (timeStr) => {
+              if (!timeStr) return '';
+              // Remove seconds if present (HH:mm:ss -> HH:mm)
+              return timeStr.split(':').slice(0, 2).join(':');
+            };
+            const openTime = formatTime(day.open);
+            const closeTime = formatTime(day.close);
+            const timeStr = day.closed ? (uiTranslations.closed[selectedLanguage] || 'Closed') : `${uiTranslations.from[selectedLanguage] || 'From'} ${openTime} ${uiTranslations.to[selectedLanguage] || 'to'} ${closeTime}`;
 
             if (!currentGroup || currentGroup.time !== timeStr) {
               if (currentGroup) grouped.push(currentGroup);
@@ -620,7 +686,7 @@ function MainMenuView({
               <div className="flex items-center gap-2 mb-3">
                 <Clock className="h-4 w-4" style={{ color: design?.sectionTextColor || '#374151' }} />
                 <span className="text-xs font-semibold" style={{ color: design?.fontColor || '#1F2937' }}>
-                  Opening Hours
+                  {uiTranslations.openingHours?.[selectedLanguage] || 'Opening Hours'}
                 </span>
               </div>
               <div className="space-y-1.5">

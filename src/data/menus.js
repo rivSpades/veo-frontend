@@ -146,3 +146,19 @@ export async function reorderSections(menuId, sectionOrders) {
     return APIResponse.error({ message: 'Failed to reorder sections' });
   }
 }
+
+/**
+ * Get demo menu (public endpoint, no auth required)
+ */
+export async function getDemoMenu() {
+  try {
+    const response = await apiFetch('/menus/demo/', {
+      method: 'GET',
+      requiresInstance: false,
+    });
+    return response;
+  } catch (error) {
+    console.error('Error fetching demo menu:', error);
+    return APIResponse.error({ message: 'Failed to load demo menu' });
+  }
+}

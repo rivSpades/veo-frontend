@@ -6,6 +6,7 @@ import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { useToast } from '../components/ui/Toast';
+import { useTranslation } from '../store/LanguageContext';
 import { QrCode, Upload, Palette, Eye, Download, Printer, RotateCcw } from 'lucide-react';
 import { instancesAPI, apiFetch } from '../data/api';
 import { getMenus } from '../data/menus';
@@ -22,6 +23,7 @@ const defaultQRSettings = {
 export default function QRCodes() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [menus, setMenus] = useState([]);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -89,16 +91,11 @@ export default function QRCodes() {
 
       console.log('QR Settings:', qrSettings);
 
-      // Check if we have a menu to generate QR for
+      // Don't show alert if no menu - just continue with empty state
       if (!qrSettings.selectedMenuId) {
-        toast({
-          title: 'No menu selected',
-          description: 'Please create a menu first before generating QR codes.',
-          type: 'info',
-        });
         setMenus([]); // Ensure it's set to empty array
         setLoading(false);
-        return;
+        // Continue to show the page even without a menu
       }
 
       setMenus(allMenus); // allMenus is guaranteed to be an array here
@@ -312,7 +309,7 @@ export default function QRCodes() {
       reader.readAsDataURL(file);
     } catch (error) {
       toast({
-        title: 'Upload failed',
+        title: t('qrCodes.uploadFailed'),
         description: 'Failed to upload background image. Please try again.',
         type: 'error',
       });
@@ -342,7 +339,7 @@ export default function QRCodes() {
         hasQrCodeUrl: !!qrCodeUrl 
       });
       toast({
-        title: 'Cannot download',
+        title: t('qrCodes.cannotDownload'),
         description: 'QR code is not ready. Please wait for it to generate.',
         type: 'error',
       });
@@ -407,14 +404,14 @@ export default function QRCodes() {
       }
 
       toast({
-        title: 'Download started',
+        title: t('qrCodes.downloadStarted'),
         description: `Your QR code is being downloaded as ${format.toUpperCase()}.`,
         type: 'success',
       });
     } catch (error) {
       console.error('Download error:', error);
       toast({
-        title: 'Download failed',
+        title: t('qrCodes.downloadFailed'),
         description: 'Failed to download QR code. Please try again.',
         type: 'error',
       });
@@ -500,7 +497,7 @@ export default function QRCodes() {
 
   if (loading || !settings) {
     return (
-      <DashboardLayout title="QR Code Generator" subtitle="Create and customize QR codes for your menus">
+      <DashboardLayout title={t('qrCodes.title')} subtitle={t('qrCodes.subtitle')}>
         <div className="p-6">
           <div className="animate-pulse space-y-4">
             <div className="h-12 bg-gray-200 rounded w-full"></div>
@@ -516,8 +513,8 @@ export default function QRCodes() {
 
   return (
     <DashboardLayout
-      title="QR Code Generator"
-      subtitle="Create and customize QR codes for your menus"
+      title={t('qrCodes.title')}
+      subtitle={t('qrCodes.subtitle')}
     >
       <div className="p-6">
         {/* Hidden canvas for QR code generation */}
@@ -577,7 +574,7 @@ export default function QRCodes() {
               <CardHeader>
                 <h3 className="text-lg font-semibold flex items-center gap-2">
                   <Palette className="w-5 h-5 text-green-600" />
-                  QR Code Color
+                  {t('qrCodes.colorTitle')}
                 </h3>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -594,7 +591,7 @@ export default function QRCodes() {
                     <Input
                       value={settings.foregroundColor}
                       onChange={(e) => handleSettingChange('foregroundColor', e.target.value)}
-                      placeholder="#000000"
+                      placeholder={t('dashboard.qrCode.colorPlaceholder')}
                       className="flex-1"
                     />
                   </div>
@@ -602,7 +599,7 @@ export default function QRCodes() {
 
                 <Button variant="outline" onClick={handleResetToDefault} className="w-full bg-transparent">
                   <RotateCcw className="w-4 h-4 mr-2" />
-                  Reset to Default
+                  {t('qrCodes.resetToDefault')}
                 </Button>
               </CardContent>
             </Card>
@@ -653,7 +650,7 @@ export default function QRCodes() {
               <CardHeader>
                 <h3 className="text-lg font-semibold flex items-center gap-2">
                   <Download className="w-5 h-5 text-blue-600" />
-                  Download & Print
+                  {t('qrCodes.downloadPrint')}
                 </h3>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -664,7 +661,7 @@ export default function QRCodes() {
                   disabled={!qrCodeUrl || downloading}
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  {downloading ? 'Downloading...' : 'Download PNG'}
+                  {downloading ? t('qrCodes.downloading') : t('qrCodes.downloadPNG')}
                 </Button>
                 <Button
                   variant="outline"
@@ -682,7 +679,7 @@ export default function QRCodes() {
                   disabled={!qrCodeUrl}
                 >
                   <Printer className="w-4 h-4 mr-2" />
-                  Printable Version
+                  {t('qrCodes.printableVersion')}
                 </Button>
               </CardContent>
             </Card>

@@ -9,6 +9,7 @@ import { Phone, ArrowLeft, CheckCircle, AlertCircle, RotateCcw } from 'lucide-re
 import { useToast } from '../components/ui/Toast';
 import { apiFetch } from '../data/api';
 import { useAuth } from '../store/AuthContext';
+import { useTranslation } from '../store/LanguageContext';
 
 export default function VerifyPhone() {
   const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
@@ -24,6 +25,7 @@ export default function VerifyPhone() {
   const location = useLocation();
   const { toast } = useToast();
   const { refreshUser, user } = useAuth();
+  const { t } = useTranslation();
   
   const { phoneNumber: statePhoneNumber, email, message } = location.state || {};
   // Always prioritize backend user data as source of truth
@@ -67,17 +69,24 @@ export default function VerifyPhone() {
 
 
   const handleCodeChange = (index, value) => {
-    if (value.length <= 1 && /^\d*$/.test(value)) {
+    // Allow overwriting existing digits - accept any digit input
+    if (/^\d$/.test(value)) {
       const newCode = [...verificationCode];
-      newCode[index] = value;
+      newCode[index] = value; // Directly set the new digit, overwriting any existing one
       setVerificationCode(newCode);
       setError('');
 
-      // Auto-focus next input
-      if (value && index < 5) {
+      // Auto-focus next input if not the last one
+      if (index < 5) {
         const nextInput = document.getElementById(`code-${index + 1}`);
         nextInput?.focus();
       }
+    } else if (value === '') {
+      // Allow clearing the field
+      const newCode = [...verificationCode];
+      newCode[index] = '';
+      setVerificationCode(newCode);
+      setError('');
     }
   };
 
@@ -89,8 +98,10 @@ export default function VerifyPhone() {
   };
 
   const handleVerify = async () => {
-    if (verificationCode.some(digit => digit === '')) {
-      setError('Please enter the complete 6-digit code');
+    const code = verificationCode.join('').trim();
+    
+    if (code.length !== 6) {
+      setError(t('auth.verify.incompleteCode') || 'Please enter the complete 6-digit code');
       return;
     }
 
@@ -98,12 +109,15 @@ export default function VerifyPhone() {
     setError('');
 
     try {
+      console.log('VerifyPhone: Sending verification code:', code);
       const response = await apiFetch('/auth/confirm-phone-verification/', {
         method: 'POST',
         body: JSON.stringify({
-          verification_code: verificationCode.join(''),
+          verification_code: code,
         }),
       });
+
+      console.log('VerifyPhone: Verification response:', response);
 
       if (response.success) {
         console.log('VerifyPhone: Phone verification successful, refreshing user data');
@@ -113,11 +127,7 @@ export default function VerifyPhone() {
         const refreshResult = await refreshUser();
         console.log('VerifyPhone: User data refreshed', refreshResult);
         
-        toast({
-          title: 'Success',
-          description: 'Phone number verified successfully!',
-          type: 'success'
-        });
+        // Don't show success toast - just redirect silently
         
         // Force page reload to ensure fresh user state
         console.log('VerifyPhone: Reloading page to get fresh user state');
@@ -125,7 +135,7 @@ export default function VerifyPhone() {
       } else {
         // Handle error response - ensure it's a string
         console.log('VerifyPhone: Error response:', response);
-        let errorMessage = response.error?.message || response.error || 'Invalid verification code';
+        let errorMessage = response.error?.message || response.error || (t('auth.verify.invalidCode') || 'Invalid verification code');
         
         // Ensure errorMessage is always a string
         if (typeof errorMessage === 'object') {
@@ -136,13 +146,14 @@ export default function VerifyPhone() {
         setError(errorMessage);
       }
     } catch (error) {
-      setError('Failed to verify code. Please try again.');
+      console.error('VerifyPhone: Verification error:', error);
+      setError(t('auth.verify.error') || 'Failed to verify code. Please try again.');
     } finally {
       setIsVerifying(false);
     }
   };
 
-  const handleSendCode = async () => {
+  const handleSendCode = async (isAutoSend = false) => {
     if (!phoneNumber) return;
 
     console.log('handleSendCode: Sending phone number:', phoneNumber);
@@ -163,20 +174,21 @@ export default function VerifyPhone() {
       if (response.success) {
         setCanResend(false);
         setCooldownRemaining(600); // 10 minutes in seconds
-        toast({
-          title: 'Success',
-          description: 'Verification code sent!',
-          type: 'success'
-        });
+        // Don't show success toast
       } else {
-        let errorMessage = response.error?.message || response.error || 'Failed to send verification code';
-        
-        // Handle cooldown error
-        if (response.cooldown_remaining) {
-          setCooldownRemaining(response.cooldown_remaining);
-          setCanResend(false);
-          errorMessage = `Please wait ${Math.floor(response.cooldown_remaining / 60)} minutes and ${response.cooldown_remaining % 60} seconds before requesting another code.`;
-        }
+          let errorMessage = response.error?.message || response.error || 'Failed to send verification code';
+          
+          // Handle cooldown error - don't show any error message, just update timer
+          if (response.cooldown_remaining) {
+            setCooldownRemaining(response.cooldown_remaining);
+            setCanResend(false);
+            // Don't set error message for cooldown - just update the timer
+            if (isAutoSend) {
+              return; // Exit early without showing toast
+            }
+            // For manual resend, don't show any error message
+            return;
+          }
         
         
         // Ensure errorMessage is always a string
@@ -184,20 +196,29 @@ export default function VerifyPhone() {
           errorMessage = JSON.stringify(errorMessage);
         }
         
-        setError(errorMessage);
-        toast({
-          title: 'Error',
-          description: errorMessage,
-          type: 'error'
-        });
+        // Don't show error toast for cooldown messages
+        if (!response.cooldown_remaining) {
+          setError(errorMessage);
+          toast({
+            title: 'Error',
+            description: errorMessage,
+            type: 'error'
+          });
+        } else {
+          // Just set error in state, don't show toast
+          setError('');
+        }
       }
     } catch (error) {
       setError('Failed to send verification code. Please try again.');
-      toast({
-        title: 'Error',
-        description: 'Failed to send verification code. Please try again.',
-        type: 'error'
-      });
+      // Don't show toast for errors during auto-send
+      if (!isAutoSend) {
+        toast({
+          title: 'Error',
+          description: 'Failed to send verification code. Please try again.',
+          type: 'error'
+        });
+      }
     } finally {
       setIsSending(false);
     }
@@ -233,7 +254,7 @@ export default function VerifyPhone() {
             // If we can send and there's no active code, automatically request verification
             if (response.data.can_send && !response.data.has_active_code && phoneNumber) {
               console.log('Automatically requesting phone verification code');
-              await handleSendCode();
+              await handleSendCode(true); // Pass true to indicate auto-send
             }
           }
         }
@@ -274,7 +295,7 @@ export default function VerifyPhone() {
         className="absolute top-4 left-4 text-white/80 hover:text-white transition-colors flex items-center gap-2"
       >
         <ArrowLeft className="h-4 w-4" />
-        <span className="text-sm">Back to Register</span>
+        <span className="text-sm">{t('auth.verify.backToRegister')}</span>
       </button>
 
       <motion.div
@@ -287,15 +308,15 @@ export default function VerifyPhone() {
           <CardHeader className="space-y-1 text-center">
             <div className="flex items-center justify-center space-x-2 mb-4">
               <Phone className="h-6 w-6 text-white" />
-              <span className="text-xl font-bold text-white">Phone Verification</span>
+              <span className="text-xl font-bold text-white">{t('auth.verify.title')}</span>
             </div>
-            <CardTitle className="text-2xl font-bold text-white">Verify Your Phone</CardTitle>
+            <CardTitle className="text-2xl font-bold text-white">{t('auth.verify.phoneTitle')}</CardTitle>
             <CardDescription className="text-white/80">
               {isCheckingCooldown 
-                ? `Checking verification status...`
+                ? t('auth.verify.checking')
                 : cooldownRemaining > 0 
-                  ? `We sent a 6-digit code to ${phoneNumber}`
-                  : `We'll send a 6-digit code to ${phoneNumber}`
+                  ? t('auth.verify.codeSent').replace('{phone}', phoneNumber)
+                  : t('auth.verify.willSend').replace('{phone}', phoneNumber)
               }
             </CardDescription>
             {message && (
@@ -315,7 +336,7 @@ export default function VerifyPhone() {
             {/* Always show verification form */}
             <div className="space-y-4">
               <Label className="text-white text-center block">
-                Enter Verification Code
+                {t('auth.verify.enterCode')}
               </Label>
               <div className="flex justify-center gap-3">
                 {verificationCode.map((digit, index) => (
@@ -326,8 +347,17 @@ export default function VerifyPhone() {
                     inputMode="numeric"
                     maxLength={1}
                     value={digit}
-                    onChange={(e) => handleCodeChange(index, e.target.value)}
+                    onChange={(e) => {
+                      const inputValue = e.target.value;
+                      // If user types a digit, replace the current value
+                      if (/^\d$/.test(inputValue)) {
+                        handleCodeChange(index, inputValue);
+                      } else if (inputValue === '') {
+                        handleCodeChange(index, '');
+                      }
+                    }}
                     onKeyDown={(e) => handleKeyDown(index, e)}
+                    onFocus={(e) => e.target.select()} // Select all text when focused for easy overwrite
                     className="w-12 h-12 text-center text-lg font-semibold bg-white/10 border-white/30 text-white focus:border-white/50"
                   />
                 ))}
@@ -346,25 +376,36 @@ export default function VerifyPhone() {
                   })}
                   className="text-white/70 hover:text-white text-sm underline"
                 >
-                  Change Phone Number
+                  {t('auth.verify.changePhone')}
                 </button>
               </div>
             )}
 
+            {/* Verify Button */}
             <Button
               onClick={handleVerify}
-              disabled={verificationCode.some(digit => digit === '') || isVerifying}
-              className="w-full bg-white text-purple-600 hover:bg-white/90 font-semibold"
+              disabled={isVerifying || verificationCode.some(digit => digit === '')}
+              className="w-full bg-white text-purple-600 hover:bg-white/90 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isVerifying ? 'Verifying...' : 'Verify Phone Number'}
+              {isVerifying ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin mr-2" />
+                  {t('auth.verify.verifying')}
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  {t('auth.verify.verifyButton')}
+                </>
+              )}
             </Button>
 
             <div className="text-center">
               {isCheckingCooldown ? (
-                <div className="text-white/70">Checking status...</div>
+                <div className="text-white/70">{t('auth.verify.checking')}</div>
               ) : cooldownRemaining > 0 ? (
                 <div className="text-white/70 text-sm">
-                  Resend available in {Math.floor(cooldownRemaining / 60)}:{(cooldownRemaining % 60).toString().padStart(2, '0')}
+                  {t('auth.verify.resendAvailable', { minutes: Math.floor(cooldownRemaining / 60), seconds: (cooldownRemaining % 60).toString().padStart(2, '0') }) || `Resend available in ${Math.floor(cooldownRemaining / 60)}:${(cooldownRemaining % 60).toString().padStart(2, '0')}`}
                 </div>
               ) : (
                 <Button
@@ -374,7 +415,7 @@ export default function VerifyPhone() {
                   className="text-white/70 hover:text-white disabled:opacity-50"
                 >
                   <RotateCcw className="w-4 h-4 mr-2" />
-                  Resend Code
+                  {t('auth.verify.resendCode')}
                 </Button>
               )}
             </div>

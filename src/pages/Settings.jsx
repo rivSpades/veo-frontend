@@ -15,16 +15,16 @@ import {
   updateRestaurantSettings,
 } from '../utils/menuStorage';
 import { useTranslation } from '../store/LanguageContext';
-import { instancesAPI } from '../data/api';
+import { instancesAPI, billingAPI } from '../data/api';
 import { useToast } from '../components/ui/Toast';
 
 const getTabs = (t) => [
-  { id: 'restaurant', label: t('settings.tabs.restaurant'), icon: Building2 },
-  { id: 'hours', label: t('settings.tabs.hours'), icon: Clock },
-  { id: 'wifi', label: t('settings.tabs.wifi'), icon: Wifi },
-  { id: 'google', label: t('settings.tabs.google'), icon: Globe },
-  { id: 'account', label: t('settings.tabs.account'), icon: User },
-  { id: 'billing', label: t('settings.tabs.billing'), icon: CreditCard },
+  { id: 'restaurant', label: t('settings.tab.restaurant'), icon: Building2 },
+  { id: 'hours', label: t('settings.tab.hours'), icon: Clock },
+  { id: 'wifi', label: t('settings.tab.wifi'), icon: Wifi },
+  { id: 'google', label: t('settings.tab.google'), icon: Globe },
+  { id: 'account', label: t('settings.tab.account'), icon: User },
+  { id: 'billing', label: t('settings.tab.billing'), icon: CreditCard },
 ];
 
 const cuisineTypes = [
@@ -59,14 +59,14 @@ const languageOptions = [
   { code: 'ru', name: 'Русский', flag: '🇷🇺', enabled: false, complete: 0 },
 ];
 
-const daysOfWeek = [
-  { day: 'Monday', open: '09:00', close: '22:00', closed: false },
-  { day: 'Tuesday', open: '09:00', close: '22:00', closed: false },
-  { day: 'Wednesday', open: '09:00', close: '22:00', closed: false },
-  { day: 'Thursday', open: '09:00', close: '22:00', closed: false },
-  { day: 'Friday', open: '09:00', close: '23:00', closed: false },
-  { day: 'Saturday', open: '10:00', close: '23:00', closed: false },
-  { day: 'Sunday', open: '10:00', close: '21:00', closed: true },
+const getDaysOfWeek = (t) => [
+  { day: 'monday', open: '09:00', close: '22:00', closed: false },
+  { day: 'tuesday', open: '09:00', close: '22:00', closed: false },
+  { day: 'wednesday', open: '09:00', close: '22:00', closed: false },
+  { day: 'thursday', open: '09:00', close: '22:00', closed: false },
+  { day: 'friday', open: '09:00', close: '23:00', closed: false },
+  { day: 'saturday', open: '10:00', close: '23:00', closed: false },
+  { day: 'sunday', open: '10:00', close: '21:00', closed: true },
 ];
 
 export default function Settings() {
@@ -79,7 +79,7 @@ export default function Settings() {
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
-  const [workingHours, setWorkingHours] = useState(daysOfWeek);
+  const [workingHours, setWorkingHours] = useState([]);
   const [languages, setLanguages] = useState(languageOptions);
   const [isDirty, setIsDirty] = useState(false);
   const [accountSettings, setAccountSettings] = useState({
@@ -91,6 +91,88 @@ export default function Settings() {
   const [currentPlan, setCurrentPlan] = useState('trial');
   const [trialDaysLeft, setTrialDaysLeft] = useState(23);
   const [trialStartDate] = useState(new Date('2024-12-10'));
+  const [stripeLoading, setStripeLoading] = useState(false);
+
+  // Stripe integration placeholder - will be implemented when API key is provided
+  const handleSubscribe = async () => {
+    setStripeLoading(true);
+    try {
+      // TODO: Implement Stripe checkout session creation when API key is provided
+      // const response = await billingAPI.createCheckoutSession('price_xxxxx');
+      // if (response.success && response.data?.url) {
+      //   window.location.href = response.data.url;
+      //   return;
+      // }
+      
+      // Placeholder for now
+      toast({
+        title: t('settings.billing.stripeNotConfigured'),
+        description: t('settings.billing.stripeNotConfiguredDesc'),
+        type: 'info',
+      });
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      toast({
+        title: t('settings.billing.error'),
+        description: t('settings.billing.checkoutError'),
+        type: 'error',
+      });
+    } finally {
+      setStripeLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    try {
+      // TODO: Implement Stripe subscription cancellation when API key is provided
+      // const response = await billingAPI.createPortalSession();
+      // if (response.success && response.data?.url) {
+      //   window.location.href = response.data.url;
+      //   return;
+      // }
+      
+      toast({
+        title: t('settings.billing.cancelConfirmation'),
+        description: t('settings.billing.cancelConfirmationDesc'),
+        type: 'info',
+      });
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      toast({
+        title: t('settings.billing.error'),
+        description: t('settings.billing.cancelError'),
+        type: 'error',
+      });
+    }
+  };
+
+  const handleUpdatePayment = async () => {
+    try {
+      // TODO: Implement Stripe payment method update when API key is provided
+      // const response = await billingAPI.createPortalSession();
+      // if (response.success && response.data?.url) {
+      //   window.location.href = response.data.url;
+      //   return;
+      // }
+      
+      toast({
+        title: t('settings.billing.paymentUpdate'),
+        description: t('settings.billing.paymentUpdateDesc'),
+        type: 'info',
+      });
+    } catch (error) {
+      console.error('Error updating payment:', error);
+      toast({
+        title: t('settings.billing.error'),
+        description: t('settings.billing.paymentUpdateError'),
+        type: 'error',
+      });
+    }
+  };
+
+  useEffect(() => {
+    setWorkingHours(getDaysOfWeek(t));
+  }, [t]);
 
   useEffect(() => {
     loadSettings();
@@ -136,9 +218,13 @@ export default function Settings() {
           showGoogleRating: instanceData.show_google_rating || false,
           googleRating: instanceData.google_rating || 0,
           googleReviewCount: instanceData.google_review_count || 0,
-          logoUrl: instanceData.logo || '',
+          logoUrl: instanceData.logo 
+            ? (instanceData.logo.startsWith('http') 
+                ? instanceData.logo 
+                : `${process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000'}${instanceData.logo}`)
+            : '',
           showHoursOnMenu: instanceData.show_hours_on_menu || false,
-          workingHours: instanceData.business_hours || daysOfWeek,
+          workingHours: instanceData.business_hours || getDaysOfWeek(t),
         };
         
         setSettings(transformedSettings);
@@ -146,7 +232,7 @@ export default function Settings() {
         // Set working hours - ensure correct structure
         const hoursData = instanceData.business_hours && instanceData.business_hours.length > 0 
           ? instanceData.business_hours 
-          : daysOfWeek;
+          : getDaysOfWeek(t);
         console.log('Loading working hours:', hoursData);
         setWorkingHours(hoursData);
         setLoading(false);
@@ -302,10 +388,13 @@ export default function Settings() {
       console.log('Logo upload response:', response);
       
       if (response && response.success && response.data) {
-        // Update with the backend URL
+        // Update with the backend URL - ensure it's a full URL
         const backendLogoUrl = response.data.logo;
         if (backendLogoUrl) {
-          handleInputChange('logoUrl', backendLogoUrl);
+          const fullLogoUrl = backendLogoUrl.startsWith('http') 
+            ? backendLogoUrl 
+            : `${process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000'}${backendLogoUrl}`;
+          handleInputChange('logoUrl', fullLogoUrl);
         }
         toast({
           title: 'Logo uploaded successfully!',
@@ -351,21 +440,22 @@ export default function Settings() {
       title={t('settings.title')}
       subtitle={t('settings.subtitle')}
     >
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         {/* Tabs */}
-        <div className="flex space-x-1 mb-8 bg-gray-100 p-1 rounded-lg w-fit">
+        <div className="flex space-x-1 mb-6 md:mb-8 bg-gray-100 p-1 rounded-lg overflow-x-auto scrollbar-hide">
           {getTabs(t).map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-colors whitespace-nowrap ${
                   activeTab === tab.id ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                <Icon className="w-4 h-4" />
-                {tab.label}
+                <Icon className="w-3 h-3 md:w-4 md:h-4" />
+                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
               </button>
             );
           })}
@@ -421,7 +511,7 @@ export default function Settings() {
                 {t('settings.restaurant.contactTitle')}
               </h3>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <Label htmlFor="phone">{t('settings.restaurant.phone')}</Label>
                   <Input
@@ -527,52 +617,60 @@ export default function Settings() {
               </div>
 
               <div className="space-y-3">
-                {(workingHours || daysOfWeek).map((day, index) => (
+                {(workingHours || getDaysOfWeek(t)).map((day, index) => (
                   <div
                     key={day.day}
                     className={`rounded-lg border-2 p-5 transition-all ${
                       !day.closed ? 'border-blue-200 bg-blue-50/50' : 'border-gray-200 bg-white'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4 min-w-[200px]">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 md:gap-4 min-w-[180px] md:min-w-[200px]">
                         <Switch
                           checked={!day.closed}
                           onCheckedChange={(checked) => handleWorkingHoursChange(index, 'closed', !checked)}
                         />
-                        <span className="font-semibold text-base text-gray-900 w-28">{day.day}</span>
+                        <span className="font-semibold text-sm md:text-base text-gray-900 w-24 md:w-28">{t(`settings.hours.${day.day.toLowerCase()}`)}</span>
                       </div>
 
-                      <div className="flex items-center gap-4 flex-1 justify-end">
+                      <div className="flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4 flex-1 md:justify-end w-full md:w-auto">
                         {!day.closed ? (
                           <>
-                            <div className="flex items-center gap-3">
-                              <div className="flex flex-col gap-1.5">
-                                <Label className="text-xs text-gray-600 font-medium">{t('settings.hours.opening')}</Label>
+                            <div className="flex items-center gap-2 md:gap-3 flex-1 md:flex-initial border-2 border-dashed border-blue-200 rounded-lg p-3 bg-blue-50/30 hover:bg-blue-50/50 transition-colors">
+                              <div className="flex flex-col gap-1.5 flex-1">
+                                <Label className="text-xs text-gray-700 font-semibold flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {t('settings.hours.opening')}
+                                </Label>
                                 <Input
                                   type="time"
                                   value={day.open}
                                   onChange={(e) => handleWorkingHoursChange(index, 'open', e.target.value)}
-                                  className="w-32 text-sm font-medium"
+                                  className="w-full md:w-32 text-sm font-medium bg-white border-2 border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 cursor-pointer"
+                                  title={t('settings.hours.clickToEdit')}
                                 />
                               </div>
-                              <span className="text-gray-400 mt-5">—</span>
-                              <div className="flex flex-col gap-1.5">
-                                <Label className="text-xs text-gray-600 font-medium">{t('settings.hours.closing')}</Label>
+                              <span className="text-gray-400 mt-5 hidden md:inline text-lg font-bold">—</span>
+                              <div className="flex flex-col gap-1.5 flex-1">
+                                <Label className="text-xs text-gray-700 font-semibold flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {t('settings.hours.closing')}
+                                </Label>
                                 <Input
                                   type="time"
                                   value={day.close}
                                   onChange={(e) => handleWorkingHoursChange(index, 'close', e.target.value)}
-                                  className="w-32 text-sm font-medium"
+                                  className="w-full md:w-32 text-sm font-medium bg-white border-2 border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 cursor-pointer"
+                                  title={t('settings.hours.clickToEdit')}
                                 />
                               </div>
                             </div>
-                            <Badge className="bg-green-100 text-green-700 border-green-200 px-3 py-1.5 font-medium">
+                            <Badge className="bg-green-100 text-green-700 border-green-200 px-3 py-1.5 font-medium whitespace-nowrap">
                               {t('settings.hours.open')}
                             </Badge>
                           </>
                         ) : (
-                          <Badge variant="secondary" className="bg-gray-100 text-gray-600 px-3 py-1.5 font-medium">
+                          <Badge variant="secondary" className="bg-gray-100 text-gray-600 px-3 py-1.5 font-medium whitespace-nowrap">
                             {t('settings.hours.closed')}
                           </Badge>
                         )}
@@ -710,7 +808,7 @@ export default function Settings() {
 
                     {settings.showGoogleRating && (
                       <div className="mt-6">
-                        <h4 className="font-medium text-gray-900 mb-3">Preview</h4>
+                        <h4 className="font-medium text-gray-900 mb-3">{t('settings.google.preview')}</h4>
                         <div className="flex items-center gap-2 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                           <Star className="w-5 h-5 text-yellow-500 fill-current" />
                           <span className="font-semibold text-lg">{settings.googleRating || 4.8}</span>
@@ -718,7 +816,7 @@ export default function Settings() {
                           <Badge variant="secondary" className="ml-auto">Google Reviews</Badge>
                         </div>
                         <p className="text-xs text-gray-500 mt-2">
-                          This is how your rating will appear on your menus
+                          {t('settings.google.previewDesc')}
                         </p>
                       </div>
                     )}
@@ -732,23 +830,23 @@ export default function Settings() {
                         <Check className="w-5 h-5 text-green-600" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-gray-900 mb-2">Benefits of Google Integration</h4>
+                        <h4 className="font-semibold text-gray-900 mb-2">{t('settings.google.benefitsTitle')}</h4>
                         <ul className="space-y-2 text-sm text-gray-600">
                           <li className="flex items-start gap-2">
                             <span className="text-green-600 mt-0.5">✓</span>
-                            <span>Build trust by displaying your real Google rating</span>
+                            <span>{t('settings.google.benefit1Desc')}</span>
                           </li>
                           <li className="flex items-start gap-2">
                             <span className="text-green-600 mt-0.5">✓</span>
-                            <span>Encourage customers to leave reviews directly from your menu</span>
+                            <span>{t('settings.google.benefit2Desc')}</span>
                           </li>
                           <li className="flex items-start gap-2">
                             <span className="text-green-600 mt-0.5">✓</span>
-                            <span>Improve your online reputation and visibility</span>
+                            <span>{t('settings.google.benefit3Desc')}</span>
                           </li>
                           <li className="flex items-start gap-2">
                             <span className="text-green-600 mt-0.5">✓</span>
-                            <span>Ratings update automatically from your Google Business profile</span>
+                            <span>{t('settings.google.benefit4Desc')}</span>
                           </li>
                         </ul>
                       </div>
@@ -852,16 +950,16 @@ export default function Settings() {
                       </Button>
                     </div>
                     <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs text-gray-500">Password Strength</span>
+                      <span className="text-xs text-gray-500">{t('settings.account.passwordStrengthLabel')}</span>
                       <Badge variant="secondary" className="text-orange-600 bg-orange-50">
-                        {accountSettings.newPassword.length === 0 ? 'Not set' : accountSettings.newPassword.length < 8 ? 'Weak' : 'Strong'}
+                        {accountSettings.newPassword.length === 0 ? t('settings.account.passwordStrength.notSet') : accountSettings.newPassword.length < 8 ? t('settings.account.passwordStrength.weak') : t('settings.account.passwordStrength.strong')}
                       </Badge>
                     </div>
                   </div>
 
                   <Button className="bg-purple-600 hover:bg-purple-700">
                     <Lock className="w-4 h-4 mr-2" />
-                    Update Password
+                    {t('settings.account.updatePassword')}
                   </Button>
                 </div>
               </CardContent>
@@ -925,7 +1023,7 @@ export default function Settings() {
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-sm font-medium text-gray-700">{t('settings.billing.trialProgress')}</span>
                       <span className="text-sm font-semibold text-blue-600">
-                        {t('settings.billing.daysRemaining', { days: trialDaysLeft })}
+                        {(t('settings.billing.daysRemaining') || '{days} days remaining').replace('{days}', trialDaysLeft)}
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
@@ -935,7 +1033,7 @@ export default function Settings() {
                       ></div>
                     </div>
                     <p className="text-xs text-gray-500">
-                      {t('settings.billing.trialStarted', { date: trialStartDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) })}
+                      {(t('settings.billing.trialStarted') || 'Trial started on {date}').replace('{date}', trialStartDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }))}
                     </p>
                   </div>
 
@@ -946,15 +1044,19 @@ export default function Settings() {
                       <div>
                         <h4 className="font-semibold text-yellow-900 text-sm mb-1">{t('settings.billing.afterTrial')}</h4>
                         <p className="text-sm text-yellow-800">
-                          {t('settings.billing.afterTrialDesc', { days: trialDaysLeft })}
+                          {(t('settings.billing.afterTrialDesc') || 'After {days} days, you will need to upgrade to continue using VEOmenu.').replace('{days}', trialDaysLeft)}
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-6 text-lg">
+                  <Button 
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-6 text-lg"
+                    onClick={handleSubscribe}
+                    disabled={stripeLoading}
+                  >
                     <Crown className="w-5 h-5 mr-2" />
-                    {t('settings.billing.subscribeNow')}
+                    {stripeLoading ? t('settings.billing.processing') : t('settings.billing.subscribeNow')}
                   </Button>
                 </CardContent>
               </Card>
@@ -997,10 +1099,17 @@ export default function Settings() {
                   </div>
 
                   <div className="flex gap-3">
-                    <Button variant="outline" className="flex-1">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={handleCancelSubscription}
+                    >
                       {t('settings.billing.cancelSubscription')}
                     </Button>
-                    <Button className="flex-1 bg-green-600 hover:bg-green-700">
+                    <Button 
+                      className="flex-1 bg-green-600 hover:bg-green-700"
+                      onClick={handleUpdatePayment}
+                    >
                       {t('settings.billing.updatePayment')}
                     </Button>
                   </div>

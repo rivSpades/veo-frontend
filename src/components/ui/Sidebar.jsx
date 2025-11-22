@@ -1,14 +1,16 @@
 import React, { createContext, useContext, useState } from 'react';
 
-const SidebarContext = createContext({ collapsed: false, toggleCollapsed: () => {} });
+const SidebarContext = createContext({ collapsed: false, toggleCollapsed: () => {}, isMobileOpen: false, toggleMobile: () => {} });
 
 export function SidebarProvider({ children }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const toggleCollapsed = () => setCollapsed(!collapsed);
+  const toggleMobile = () => setIsMobileOpen(!isMobileOpen);
 
   return (
-    <SidebarContext.Provider value={{ collapsed, toggleCollapsed }}>
+    <SidebarContext.Provider value={{ collapsed, toggleCollapsed, isMobileOpen, toggleMobile }}>
       <div className="flex min-h-screen w-full">
         {children}
       </div>
@@ -21,17 +23,38 @@ export function useSidebar() {
 }
 
 export function Sidebar({ children, ...props }) {
-  const { collapsed } = useSidebar();
+  const { collapsed, isMobileOpen, toggleMobile } = useSidebar();
 
   return (
-    <aside
-      className={`${
-        collapsed ? 'w-16' : 'w-64'
-      } bg-white border-r border-gray-200 transition-all duration-300 flex flex-col fixed left-0 top-0 h-screen z-40`}
-      {...props}
-    >
-      {children}
-    </aside>
+    <>
+      {/* Mobile Overlay */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={toggleMobile}
+        />
+      )}
+
+      {/* Desktop Sidebar */}
+      <aside
+        className={`${
+          collapsed ? 'w-16' : 'w-64'
+        } bg-white border-r border-gray-200 transition-all duration-300 flex flex-col fixed left-0 top-0 h-screen z-40 hidden md:flex`}
+        {...props}
+      >
+        {children}
+      </aside>
+
+      {/* Mobile Sidebar */}
+      <aside
+        className={`w-64 bg-white border-r border-gray-200 transition-all duration-300 flex flex-col fixed left-0 top-0 h-screen z-50 md:hidden ${
+          isMobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        {...props}
+      >
+        {children}
+      </aside>
+    </>
   );
 }
 
@@ -95,7 +118,7 @@ export function SidebarInset({ children }) {
   const { collapsed } = useSidebar();
 
   return (
-    <div className={`flex-1 flex flex-col min-h-screen ${collapsed ? 'ml-16' : 'ml-64'} transition-all duration-300`}>
+    <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${collapsed ? 'md:ml-16' : 'md:ml-64'}`}>
       {children}
     </div>
   );

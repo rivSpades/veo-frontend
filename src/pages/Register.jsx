@@ -301,7 +301,7 @@ export default function Register() {
                       id="phone"
                       name="phone"
                       type="tel"
-                      placeholder="969850699"
+                      placeholder={t('auth.register.phonePlaceholder')}
                       value={formData.phone}
                       onChange={handleInputChange}
                       className={`pl-10 bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-white/50 ${

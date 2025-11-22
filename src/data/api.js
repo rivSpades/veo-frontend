@@ -264,6 +264,39 @@ export const instancesAPI = {
   },
 
   /**
+   * Create a new instance with logo (FormData)
+   */
+  async createInstanceWithLogo(instanceData, logoFile) {
+    const formData = new FormData();
+    
+    // Add all instance data fields to FormData
+    Object.keys(instanceData).forEach(key => {
+      if (instanceData[key] !== null && instanceData[key] !== undefined) {
+        formData.append(key, instanceData[key]);
+      }
+    });
+    
+    // Add logo file
+    if (logoFile) {
+      formData.append('logo', logoFile, 'logo.jpg');
+    }
+
+    const response = await apiFetch('/instances/', {
+      method: 'POST',
+      body: formData,
+    });
+
+    // Store instance ID if successful
+    if (response.success && response.data?.instance) {
+      localStorage.setItem('instance_id', response.data.instance.id);
+    } else if (response.success && response.data?.id) {
+      localStorage.setItem('instance_id', response.data.id);
+    }
+
+    return response;
+  },
+
+  /**
    * Update instance
    */
   async updateInstance(id, instanceData) {
@@ -320,12 +353,32 @@ export const instancesAPI = {
       body: JSON.stringify(hoursData),
     });
   },
+
+  /**
+   * Get demo instance (public endpoint, no auth required)
+   */
+  async getDemoInstance() {
+    return await apiFetch('/instances/demo/', {
+      method: 'GET',
+      requiresInstance: false,
+    });
+  },
 };
 
 /**
  * Menus API
  */
 export const menusAPI = {
+  /**
+   * Create a new menu
+   */
+  async createMenu(menuData) {
+    return await apiFetch('/menus/', {
+      method: 'POST',
+      body: JSON.stringify(menuData),
+      requiresInstance: true,
+    });
+  },
   /**
    * Get all menus
    */
@@ -390,6 +443,160 @@ export const menusAPI = {
     return await apiFetch(`/menus/${id}/analytics/?days=${days}`, {
       requiresInstance: true,
     });
+  },
+
+  /**
+   * Get detailed analytics for a specific menu or all menus
+   * @param {string} menuId - Menu ID or 'all' for all menus
+   * @param {number} days - Number of days to fetch (or 'all' for all time)
+   * @param {string} type - 'views' or 'scans'
+   */
+  async getDetailedAnalytics(menuId = 'all', days = 30, type = 'views') {
+    try {
+      let menus = [];
+      
+      if (menuId === 'all') {
+        const menusResponse = await this.getMenus();
+        if (menusResponse.success && menusResponse.data) {
+          menus = Array.isArray(menusResponse.data) 
+            ? menusResponse.data 
+            : menusResponse.data.results || [];
+        }
+      } else {
+        const menuResponse = await this.getMenu(menuId);
+        if (menuResponse.success && menuResponse.data) {
+          menus = [menuResponse.data];
+        }
+      }
+
+      if (menus.length === 0) {
+        return APIResponse.success({
+          total_views: 0,
+          views_by_day: {},
+          hasData: false,
+        });
+      }
+
+      // Fetch analytics for all menus
+      const daysParam = days === 'all' || days > 365 ? 365 : days;
+      const analyticsPromises = menus.map(menu => this.getMenuAnalytics(menu.id, daysParam));
+      const analyticsResults = await Promise.allSettled(analyticsPromises);
+
+      // Aggregate views by day
+      const viewsByDay = {};
+      let totalViews = 0;
+
+      analyticsResults.forEach((result) => {
+        if (result.status === 'fulfilled' && result.value.success && result.value.data) {
+          const analytics = result.value.data;
+          totalViews += analytics.total_views || 0;
+
+          if (analytics.views_by_day) {
+            Object.entries(analytics.views_by_day).forEach(([date, count]) => {
+              viewsByDay[date] = (viewsByDay[date] || 0) + count;
+            });
+          }
+        }
+      });
+
+      return APIResponse.success({
+        total_views: totalViews,
+        views_by_day: viewsByDay,
+        hasData: totalViews > 0,
+      });
+    } catch (error) {
+      console.error('Error fetching detailed analytics:', error);
+      return APIResponse.error({ message: 'Failed to fetch detailed analytics' });
+    }
+  },
+
+  /**
+   * Get dashboard statistics - aggregates analytics from all menus
+   */
+  async getDashboardStats(days = 7) {
+    try {
+      // Get all menus first
+      const menusResponse = await this.getMenus();
+      if (!menusResponse.success || !menusResponse.data || menusResponse.data.length === 0) {
+        return APIResponse.success({
+          totalViews: 0,
+          totalMenus: 0,
+          languages: [],
+          weeklyScans: [],
+          popularLanguages: [],
+          hasData: false,
+        });
+      }
+
+      const menus = Array.isArray(menusResponse.data) ? menusResponse.data : menusResponse.data.results || [];
+      
+      // Fetch analytics for all menus in parallel
+      const analyticsPromises = menus.map(menu => this.getMenuAnalytics(menu.id, days));
+      const analyticsResults = await Promise.allSettled(analyticsPromises);
+
+      // Aggregate data
+      let totalViews = 0;
+      const languageBreakdown = {};
+      const viewsByDay = {};
+
+      analyticsResults.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value.success && result.value.data) {
+          const analytics = result.value.data;
+          totalViews += analytics.total_views || 0;
+
+          // Aggregate language breakdown
+          if (analytics.language_breakdown) {
+            Object.entries(analytics.language_breakdown).forEach(([lang, count]) => {
+              languageBreakdown[lang] = (languageBreakdown[lang] || 0) + count;
+            });
+          }
+
+          // Aggregate views by day
+          if (analytics.views_by_day) {
+            Object.entries(analytics.views_by_day).forEach(([day, count]) => {
+              viewsByDay[day] = (viewsByDay[day] || 0) + count;
+            });
+          }
+        }
+      });
+
+      // Calculate popular languages
+      const popularLanguages = Object.entries(languageBreakdown)
+        .map(([code, count]) => ({
+          code: code.toUpperCase(),
+          count,
+          percentage: totalViews > 0 ? Math.round((count / totalViews) * 100) : 0,
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3);
+
+      // Format weekly scans from views by day
+      const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const weeklyScans = dayNames.map(day => ({
+        day,
+        scans: viewsByDay[day] || 0,
+      }));
+
+      // Get unique languages from menus
+      const allLanguages = new Set();
+      menus.forEach(menu => {
+        if (menu.available_languages && Array.isArray(menu.available_languages)) {
+          menu.available_languages.forEach(lang => allLanguages.add(lang));
+        }
+      });
+
+      return APIResponse.success({
+        totalViews,
+        totalMenus: menus.length,
+        languages: Array.from(allLanguages),
+        weeklyScans,
+        popularLanguages,
+        hasData: totalViews > 0,
+      });
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      return APIResponse.error({ message: 'Failed to fetch dashboard statistics' });
+    }
   },
 
   /**
